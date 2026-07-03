@@ -185,37 +185,74 @@ export function Tv({ roomId }: { roomId: string }) {
         <button title="audio mix" onClick={() => setShowMixer((s) => !s)}>🔊</button>
       </div>
       {showMixer && (
-        <div className="flyout">
+        <div className="flyout audio-panel">
+          <div className="conspiracy-decor tl"></div>
+          <div className="conspiracy-decor tr"></div>
+          <div className="conspiracy-decor bl"></div>
+          <div className="conspiracy-decor br"></div>
           <div className="flyout-title">Audio</div>
-          {(["voice", "music", "sfx"] as const).map((k) => (
-            <label key={k}>
-              {k}
+          <div className="audio-grid">
+            <span className="audio-label label-voice">Voice</span>
+            <div className="slider-container">
               <input
                 type="range"
                 min={0}
                 max={1}
                 step={0.05}
-                value={mix[k]}
-                style={{ ["--fill" as string]: `${Math.round(mix[k] * 100)}%` }}
-                onChange={(e) => setMix((m) => ({ ...m, [k]: Number(e.target.value) }))}
+                value={mix.voice}
+                className="slider-voice"
+                style={{ ["--fill" as string]: `${Math.round(mix.voice * 100)}%` }}
+                onChange={(e) => setMix((m) => ({ ...m, voice: Number(e.target.value) }))}
               />
-            </label>
-          ))}
-          <label>
-            speech speed ({mix.speed.toFixed(2)}×)
-            <input
-              type="range"
-              min={0.75}
-              max={1.5}
-              step={0.05}
-              value={mix.speed}
-              style={{ ["--fill" as string]: `${Math.round(((mix.speed - 0.75) / 0.75) * 100)}%` }}
-              onChange={(e) => setMix((m) => ({ ...m, speed: Number(e.target.value) }))}
-            />
-          </label>
+            </div>
+
+            <span className="audio-label label-music">Music</span>
+            <div className="slider-container">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={mix.music}
+                className="slider-music"
+                style={{ ["--fill" as string]: `${Math.round(mix.music * 100)}%` }}
+                onChange={(e) => setMix((m) => ({ ...m, music: Number(e.target.value) }))}
+              />
+            </div>
+
+            <span className="audio-label label-sfx">SFX</span>
+            <div className="slider-container">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={mix.sfx}
+                className="slider-sfx"
+                style={{ ["--fill" as string]: `${Math.round(mix.sfx * 100)}%` }}
+                onChange={(e) => setMix((m) => ({ ...m, sfx: Number(e.target.value) }))}
+              />
+            </div>
+
+            <span className="audio-label label-speed">
+              Speech speed <span className="speed-val">({mix.speed.toFixed(2)}×)</span>
+            </span>
+            <div className="slider-container">
+              <input
+                type="range"
+                min={0.75}
+                max={1.5}
+                step={0.05}
+                value={mix.speed}
+                className="slider-speed"
+                style={{ ["--fill" as string]: `${Math.round(((mix.speed - 0.75) / 0.75) * 100)}%` }}
+                onChange={(e) => setMix((m) => ({ ...m, speed: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
           {mix.speed !== 1 && (
-            <button style={{ fontSize: 13, padding: "6px 10px" }} onClick={() => setMix((m) => ({ ...m, speed: 1 }))}>
-              reset to 1.00×
+            <button className="reset-speed-btn" onClick={() => setMix((m) => ({ ...m, speed: 1 }))}>
+              Reset Speed
             </button>
           )}
         </div>
