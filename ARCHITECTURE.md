@@ -104,21 +104,27 @@ Modules fire beats via `room.play(beatId)` from their own flow code.
 Everything else (lobby, QR join, reconnects, voice, timers) is engine.
 
 ### Module 1 — Conspiracy (social deduction)
-Roles (scaled 4→16 players): conspirators (1–4), godfather (reads INNOCENT to
-the detective), doctor, detective(s), vigilante (one bullet; guilt kills them
-if they shoot an innocent), jester (neutral — wins only by being voted out),
-innocents. `lobby → role_reveal → night → day → voting → … → ended`.
+Roles (scaled 4→16 players, gated by the `conspiracyRoles` setting — classic
+vs. full chaos): conspirators (1–4), godfather (reads INNOCENT to the
+detective), doctor, detective(s), vigilante (one bullet; guilt kills them if
+they shoot an innocent), jester (neutral — wins only by being voted out),
+mayor (vote counts as two), consigliere (learns a player's exact role each
+night), innocents. `lobby → role_reveal → night → day → voting → … → ended`.
 Night actions/votes on phones; server resolves; Director narrates dawn and
 verdicts. Discussion ends by timer **or** when a majority taps "call the
-vote". Dead players bet on outcomes for ghost points.
+vote". Dead players bet on outcomes for ghost points and may leave last words.
 
 ### Module 2 — Whodunnit (murder mystery)
 `lobby → prologue → investigation → accusation → verdict → … → revelation → ended`.
 Director authors the scenario as JSON (victim, setting, comedic character
-name + quirk per player) and, each round, public clues per occupied location
-and private clues per player (killer gets cover material). Players roam six
-locations (the location art), then accuse; trials vote guilty/innocent; wrong
-convictions cost reputation and burn one of three rounds.
+name + quirk per player, gender-matched to each player's avatar) and, each
+round, public clues per occupied location and private clues per player
+(killer gets cover material). Players roam six locations (the location art),
+then accuse; trials vote guilty/innocent (the accused writes a free-text
+alibi and may counter-accuse someone else, which lingers as a clue into later
+rounds); wrong convictions cost reputation and burn one of `mysteryRounds`
+(2–4, host-configurable). 7+ players adds an accomplice who protects the
+killer without exposing themselves.
 
 ## Running it
 ```powershell
@@ -134,12 +140,16 @@ npm run build && npm start   # production single process
 ### Module 3 — Dungeon Run (party RPG)
 `lobby → forge → intro → room_intro → action_pick → rolling → outcome → … → ended`.
 Players forge their legend mad-libs style (quirky adjective, signature item,
-backstory — class comes from their lobby avatar), then five AI-authored rooms,
-two trials each. One hero acts per turn (Brute Force / Magic / Chaos + a d20,
-with class-affinity bonuses, party loot items, and shake-to-roll); every other
-player spends BUFF (+2) / SABOTAGE (−2) charges in real time (2+2, refilled
-every room, net swing capped at ±6). Totals ≥20 hit the GREAT SUCCESS band.
-The server owns all dice math; the Director authors each room live and
+backstory — class comes from their lobby avatar), then `dungeonRooms` (4/5/7,
+host-configurable) AI-authored rooms, two trials each. One hero acts per turn
+(Brute Force / Magic / Chaos + a d20, with class-affinity bonuses, party loot
+items, and shake-to-roll); every other player spends BUFF (+2) / SABOTAGE (−2)
+charges in real time (2+2, refilled every room, net swing capped at ±6).
+Totals ≥20 hit the GREAT SUCCESS band. **Standard intensity** (host setting,
+default Casual) adds comedic KOs — a natural 1 knocks the hero out for the
+rest of the run and turns them into an unlimited-charge heckler — plus a
+Director-invented 4th situational action per room. The server owns all dice
+math; the Director authors each room live and
 narrates outcomes weaving roll, meddlers, quirks and signature items. Uses the
 generated D&D art (class portraits + room paintings + item icons).
 
