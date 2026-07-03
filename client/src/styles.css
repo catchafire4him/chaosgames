@@ -296,7 +296,96 @@ input {
 }
 .flyout-title { color: var(--accent); font-variant: small-caps; font-size: 18px; }
 .flyout label { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 15px; color: var(--ink-dim); }
-.flyout input[type="range"] { width: 140px; accent-color: var(--accent); }
+/* ── Audio-mixer sliders ──
+   Filled track (accent up to the knob) via --fill set inline per slider.
+   The custom appearance:none thumb reaches the track's true edges. */
+.flyout input[type="range"] {
+  --knob: var(--accent);
+  --track-h: 4px;
+  --thumb: 15px;
+  width: 150px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: var(--thumb);
+  background: transparent;
+  margin: 0;
+  cursor: pointer;
+}
+.flyout input[type="range"]::-webkit-slider-runnable-track {
+  height: var(--track-h);
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--accent), var(--accent)) 0 / var(--fill, 50%) 100% no-repeat,
+    var(--line);
+}
+.flyout input[type="range"]::-moz-range-track {
+  height: var(--track-h);
+  border-radius: 999px;
+  background: var(--line);
+}
+.flyout input[type="range"]::-moz-range-progress {
+  height: var(--track-h);
+  border-radius: 999px;
+  background: var(--accent);
+}
+.flyout input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.7), transparent 45%), var(--knob);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  margin-top: calc((var(--track-h) - var(--thumb)) / 2);
+}
+.flyout input[type="range"]::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.7), transparent 45%), var(--knob);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+/* ── Per-theme mixer panels & gem knobs (matches the audio-panel mockups) ── */
+/* Dungeon Run — pixel wooden chest, gem-colored knobs */
+[data-theme="dungeon"] .flyout {
+  background: linear-gradient(#3a2613, #291a0c);
+  border: 3px solid #6b4a25;
+  box-shadow: inset 0 0 0 2px #17100a, 0 14px 40px rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+}
+[data-theme="dungeon"] .flyout label:nth-of-type(1) input { --knob: #37c15a; }
+[data-theme="dungeon"] .flyout label:nth-of-type(2) input { --knob: #d33f45; }
+[data-theme="dungeon"] .flyout label:nth-of-type(3) input { --knob: #3f7fe0; }
+[data-theme="dungeon"] .flyout label:nth-of-type(4) input { --knob: #e59a3c; }
+
+/* Whodunnit — Victorian brass on dark wood */
+[data-theme="whodunnit"] .flyout {
+  background: linear-gradient(#3a1512, #2a0f0d);
+  border: 2px solid var(--accent);
+  box-shadow: inset 0 0 0 3px #571d16, 0 14px 40px rgba(0, 0, 0, 0.6);
+}
+[data-theme="whodunnit"] .flyout input[type="range"] {
+  --knob: linear-gradient(#f0d493, #b8923f);
+}
+
+/* Conspiracy — elegant navy with thin gold frame, faceted gold-ring knobs */
+[data-theme="conspiracy"] .flyout {
+  background: #0d0d18;
+  border: 1px solid var(--accent);
+  box-shadow: inset 0 0 0 4px rgba(216, 169, 78, 0.14), 0 14px 40px rgba(0, 0, 0, 0.7);
+}
+[data-theme="conspiracy"] .flyout input[type="range"]::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 30%, #4a4a55, #14141f 60%);
+  box-shadow: 0 0 0 2px var(--accent), 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+[data-theme="conspiracy"] .flyout input[type="range"]::-moz-range-thumb {
+  background: radial-gradient(circle at 35% 30%, #4a4a55, #14141f 60%);
+  box-shadow: 0 0 0 2px var(--accent), 0 1px 3px rgba(0, 0, 0, 0.6);
+}
 .flyout.recap { max-width: 420px; max-height: 50vh; overflow-y: auto; }
 .flyout.recap p { font-size: 15px; font-style: italic; line-height: 1.45; border-left: 3px solid var(--line); padding-left: 10px; }
 

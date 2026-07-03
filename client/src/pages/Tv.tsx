@@ -196,6 +196,7 @@ export function Tv({ roomId }: { roomId: string }) {
                 max={1}
                 step={0.05}
                 value={mix[k]}
+                style={{ ["--fill" as string]: `${Math.round(mix[k] * 100)}%` }}
                 onChange={(e) => setMix((m) => ({ ...m, [k]: Number(e.target.value) }))}
               />
             </label>
@@ -208,6 +209,7 @@ export function Tv({ roomId }: { roomId: string }) {
               max={1.5}
               step={0.05}
               value={mix.speed}
+              style={{ ["--fill" as string]: `${Math.round(((mix.speed - 0.75) / 0.75) * 100)}%` }}
               onChange={(e) => setMix((m) => ({ ...m, speed: Number(e.target.value) }))}
             />
           </label>
