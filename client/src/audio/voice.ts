@@ -35,10 +35,16 @@ export class VoiceEngine {
   onIdle: () => void = () => {};
 
   private volume = 1;
+  /** playback rate for both the streamed PCM and the browser-TTS fallback */
+  private rate = 1;
 
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v));
     if (this.gain) this.gain.gain.value = this.volume;
+  }
+
+  setRate(r: number): void {
+    this.rate = Math.max(0.5, Math.min(2, r));
   }
 
   /** must be called from a user gesture (autoplay policy) */
@@ -144,12 +150,14 @@ export class VoiceEngine {
     buffer.copyToChannel(float32, 0);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
+    source.playbackRate.value = this.rate;
     source.connect(this.gain!);
     this.activeSources.add(source);
     source.onended = () => this.activeSources.delete(source);
     const startAt = Math.max(this.nextStartTime, ctx.currentTime + 0.03);
     source.start(startAt);
-    this.nextStartTime = startAt + buffer.duration;
+    // faster playback shortens actual duration — keep chunks gapless
+    this.nextStartTime = startAt + buffer.duration / this.rate;
   }
 
   /** decide whether the current line is finished (or how to finish it) */
@@ -203,7 +211,7 @@ export class VoiceEngine {
         }
       };
       const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.02;
+      u.rate = Math.max(0.3, Math.min(3, 1.02 * this.rate));
       u.pitch = 0.9;
       u.onend = finish;
       u.onerror = finish;

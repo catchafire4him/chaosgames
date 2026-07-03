@@ -106,6 +106,7 @@ export function Tv({ roomId }: { roomId: string }) {
   // apply + persist the audio mix
   useEffect(() => {
     voiceRef.current!.setVolume(mix.voice);
+    voiceRef.current!.setRate(mix.speed);
     musicRef.current!.setVolume(mix.music * 0.45);
     setSfxVolume(mix.sfx);
     localStorage.setItem("chaos_mix", JSON.stringify(mix));
@@ -191,6 +192,22 @@ export function Tv({ roomId }: { roomId: string }) {
               />
             </label>
           ))}
+          <label>
+            speech speed ({mix.speed.toFixed(2)}×)
+            <input
+              type="range"
+              min={0.75}
+              max={1.5}
+              step={0.05}
+              value={mix.speed}
+              onChange={(e) => setMix((m) => ({ ...m, speed: Number(e.target.value) }))}
+            />
+          </label>
+          {mix.speed !== 1 && (
+            <button style={{ fontSize: 13, padding: "6px 10px" }} onClick={() => setMix((m) => ({ ...m, speed: 1 }))}>
+              reset to 1.00×
+            </button>
+          )}
         </div>
       )}
       {showRecap && (
@@ -225,8 +242,10 @@ interface Mix {
   voice: number;
   music: number;
   sfx: number;
+  /** playback rate for the host's voice — 1.0 = normal */
+  speed: number;
 }
-const DEFAULT_MIX: Mix = { voice: 1, music: 0.4, sfx: 0.5 };
+const DEFAULT_MIX: Mix = { voice: 1, music: 0.4, sfx: 0.5, speed: 1 };
 
 function LobbyScene({
   room,
