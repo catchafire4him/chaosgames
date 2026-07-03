@@ -61,3 +61,5 @@ in `client/src/theme.ts` (scene artwork, music) and a `[data-theme="<id>"]`
 block in `client/src/styles.css` (palette + typography). The hub and phone join
 flow stay neutral; the theme takes over the moment a room's game is known.
 The engine, voice pipeline, lobby, QR join, timers and reconnects are all shared.
+
+_Deployed via Railway, auto-deploy connected to GitHub._
