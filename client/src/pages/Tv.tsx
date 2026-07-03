@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ClientMessage, ModuleInfo, NarrationLine, PublicRoom } from "@shared/index";
+import { navigate } from "../App";
 import { Music, VoiceEngine } from "../audio/voice";
 import { enableSfx, playSfx, setSfxVolume } from "../audio/sfx";
 import { useSocket } from "../net/socket";
@@ -130,8 +131,15 @@ export function Tv({ roomId }: { roomId: string }) {
   if (error && !room) {
     return (
       <div className="themed" data-theme="neutral">
-        <div className="scene" style={{ alignItems: "center", justifyContent: "center" }}>
-          <div className="error-banner">{error}</div>
+        <div className="scene" style={{ alignItems: "center", justifyContent: "center", gap: 22 }}>
+          <div className="error-banner" style={{ maxWidth: 560, textAlign: "center", lineHeight: 1.5 }}>
+            {error.toLowerCase().includes("not found")
+              ? "This game session is gone — usually because the server restarted (a deploy, a restart, or the host updated the game). Nobody's fault, just start a fresh one."
+              : error}
+          </div>
+          <button className="primary" style={{ fontSize: 20, padding: "14px 30px" }} onClick={() => navigate("#/")}>
+            ← Back to the hub
+          </button>
         </div>
       </div>
     );

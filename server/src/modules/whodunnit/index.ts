@@ -20,6 +20,17 @@ const LOCATION_ART = [
   "generic",
 ] as const;
 
+/** Portrait set is 8 unique paintings (p01-p08) repeated as p09-p16, in this
+ *  fixed gender order — used so the Director gives each player a character
+ *  name matching how their chosen avatar presents. */
+const AVATAR_GENDER_PATTERN: ("female" | "male")[] = [
+  "female", "male", "male", "female", "male", "female", "male", "female",
+];
+function genderForAvatar(avatar: string): "male" | "female" {
+  const idx = Math.max(0, (parseInt(avatar.replace(/\D/g, ""), 10) || 1) - 1);
+  return AVATAR_GENDER_PATTERN[idx % AVATAR_GENDER_PATTERN.length];
+}
+
 interface Scenario {
   title: string;
   setting: string;
@@ -115,12 +126,18 @@ function scenarioSchema(room: Room): ToolParameters {
       },
       characters: {
         type: "array",
-        description: `one entry per player id: ${[...room.players.keys()].join(", ")}`,
+        description:
+          `one entry per player id, matching the presented gender given for each player in the ` +
+          `instructions (a masculine character name for a player presenting male, feminine for female): ` +
+          [...room.players.values()].map((p) => `${p.id} (${genderForAvatar(p.avatar)})`).join(", "),
         items: {
           type: "object",
           properties: {
             playerId: { type: "string" },
-            characterName: { type: "string", description: "comedic period character name" },
+            characterName: {
+              type: "string",
+              description: "comedic period character name matching that player's presented gender",
+            },
             quirk: { type: "string", description: "one funny defining quirk/secret (not the murder)" },
           },
           required: ["playerId", "characterName", "quirk"],
@@ -481,6 +498,9 @@ export const whodunnit: GameModule = {
     room.setPhase("prologue");
     const killerNames = killers(room).map((p) => `${p.name} (id:${p.id})`).join(" and ");
     const accompliceNames = accomplices(room).map((p) => `${p.name} (id:${p.id})`).join(" and ");
+    const genderRoster = [...room.players.values()]
+      .map((p) => `${p.name} (id:${p.id}) presents as ${genderForAvatar(p.avatar)}`)
+      .join("; ");
     room.play({
       id: "scenario",
       schema: scenarioSchema(room),
@@ -490,8 +510,9 @@ export const whodunnit: GameModule = {
         (accompliceNames
           ? `, aided by a secret ACCOMPLICE: ${accompliceNames} (they know the killer and will quietly cover for them)`
           : "") +
-        ` — design the scenario knowing this, but NEVER say any of it aloud. Give every player a comedic character ` +
-        `name + quirk. Then, in your spoken lines, deliver the prologue: welcome the guests, introduce the ` +
+        ` — design the scenario knowing this, but NEVER say any of it aloud. Give every player a comedic period ` +
+        `character name + quirk, matching each character's name to that player's presented gender: ${genderRoster}. ` +
+        `Then, in your spoken lines, deliver the prologue: welcome the guests, introduce the ` +
         `victim and the tragedy, introduce each player BY CHARACTER NAME with a wink at their quirk, and ` +
         `declare the investigation open. 5-7 lines.`,
       after: (r) => startInvestigation(r),
@@ -713,20 +734,23 @@ export const whodunnit: GameModule = {
 
   cannedData(beatId: string, room: Room) {
     if (beatId === "scenario") {
-      const NAMES = [
+      const MALE_NAMES = [
         ["Colonel Aubergine", "cannot stop mentioning the war"],
-        ["Lady Pemberton-Smythe", "faints strategically"],
         ["Dr. Obadiah Quill", "prescribes leeches for everything"],
-        ["Miss Marigold Fenwick", "collects other people's secrets"],
         ["Professor Thaddeus Bloom", "narrates his own actions"],
-        ["Madame Zelda Ravencroft", "claims to speak with the dead"],
         ["Captain Reginald Foxworth", "lies about having a boat"],
-        ["Sister Agnes Nightshade", "suspiciously good with knives"],
         ["Barnaby the Butler", "has definitely seen too much"],
-        ["Countess Von Bitters", "sues people recreationally"],
         ["Ignatius Crumb", "eats during inappropriate moments"],
+      ];
+      const FEMALE_NAMES = [
+        ["Lady Pemberton-Smythe", "faints strategically"],
+        ["Miss Marigold Fenwick", "collects other people's secrets"],
+        ["Madame Zelda Ravencroft", "claims to speak with the dead"],
+        ["Sister Agnes Nightshade", "suspiciously good with knives"],
+        ["Countess Von Bitters", "sues people recreationally"],
         ["Petunia Wolfe", "aggressively writes everything down"],
       ];
+      const used = { male: 0, female: 0 };
       return {
         title: "Death at Blackwood Manor",
         setting: "A thunderstorm has trapped tonight's dinner guests inside Blackwood Manor.",
@@ -741,11 +765,13 @@ export const whodunnit: GameModule = {
           "the Master Bedroom",
           "the Grounds",
         ],
-        characters: [...room.players.keys()].map((playerId, i) => ({
-          playerId,
-          characterName: NAMES[i % NAMES.length][0],
-          quirk: NAMES[i % NAMES.length][1],
-        })),
+        characters: [...room.players.values()].map((player) => {
+          const gender = genderForAvatar(player.avatar);
+          const pool = gender === "male" ? MALE_NAMES : FEMALE_NAMES;
+          const [characterName, quirk] = pool[used[gender] % pool.length];
+          used[gender]++;
+          return { playerId: player.id, characterName, quirk };
+        }),
       };
     }
     if (beatId === "clues") {

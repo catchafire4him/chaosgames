@@ -59,38 +59,52 @@ export function Play({ code }: { code: string }) {
 
   useWakeLock(!!room);
 
+  const roomGone = !!error && error.toLowerCase().includes("not found");
+
   if (!joinedName) {
     return (
       <div className="phone themed" data-theme="neutral">
         <div className="phone-main" style={{ justifyContent: "center" }}>
           <div className="phone-title">Chaos Games</div>
-          <p className="phone-hint">
-            Joining room <b style={{ color: "var(--accent)" }}>{code}</b>. What's your name?
-          </p>
-          {error && <div className="error-banner">{error}</div>}
-          <input
-            autoFocus
-            placeholder="Your name"
-            maxLength={16}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && name.trim()) {
-                localStorage.setItem(`${storageKey}_name`, name.trim());
-                setJoinedName(name.trim());
-              }
-            }}
-          />
-          <button
-            className="primary"
-            disabled={!name.trim()}
-            onClick={() => {
-              localStorage.setItem(`${storageKey}_name`, name.trim());
-              setJoinedName(name.trim());
-            }}
-          >
-            Join the game
-          </button>
+          {roomGone ? (
+            <p className="phone-hint">
+              This game session is gone — usually because the server restarted (a deploy or
+              restart). The room code <b style={{ color: "var(--accent)" }}>{code}</b> no longer
+              exists. Ask the TV to open a fresh room and scan the new code.
+            </p>
+          ) : (
+            <p className="phone-hint">
+              Joining room <b style={{ color: "var(--accent)" }}>{code}</b>. What's your name?
+            </p>
+          )}
+          {error && !roomGone && <div className="error-banner">{error}</div>}
+          {!roomGone && (
+            <>
+              <input
+                autoFocus
+                placeholder="Your name"
+                maxLength={16}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && name.trim()) {
+                    localStorage.setItem(`${storageKey}_name`, name.trim());
+                    setJoinedName(name.trim());
+                  }
+                }}
+              />
+              <button
+                className="primary"
+                disabled={!name.trim()}
+                onClick={() => {
+                  localStorage.setItem(`${storageKey}_name`, name.trim());
+                  setJoinedName(name.trim());
+                }}
+              >
+                Join the game
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
