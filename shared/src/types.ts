@@ -39,6 +39,9 @@ export interface RoomSettings {
   pace: "relaxed" | "standard" | "fast";
   /** Dungeon Run: rooms per run */
   dungeonRooms: 4 | 5 | 7;
+  /** Dungeon Run: casual = no KOs, 3 actions only. standard = comedic KOs
+   *  (dead heroes become unlimited-charge hecklers) + a 4th situational action */
+  dungeonIntensity: "casual" | "standard";
   /** Whodunnit: investigation rounds before the killer escapes */
   mysteryRounds: 2 | 3 | 4;
   /** Conspiracy: classic = doctor+detective only; full = godfather/vigilante/jester too */
@@ -48,6 +51,7 @@ export interface RoomSettings {
 export const DEFAULT_SETTINGS: RoomSettings = {
   pace: "standard",
   dungeonRooms: 5,
+  dungeonIntensity: "casual",
   mysteryRounds: 3,
   conspiracyRoles: "full",
 };
@@ -57,6 +61,14 @@ export interface ObjectiveReveal {
   name: string;
   text: string;
   claimed: boolean;
+}
+
+/** Running points for one player across every game played in this room tonight. */
+export interface ScoreEntry {
+  playerId: string;
+  name: string;
+  avatar: string;
+  points: number;
 }
 
 export interface PublicRoom {
@@ -74,6 +86,8 @@ export interface PublicRoom {
   settings: RoomSettings;
   /** secret side missions, revealed once the game ends */
   objectives: ObjectiveReveal[] | null;
+  /** running points across every game played in this room tonight, sorted desc */
+  scoreboard: ScoreEntry[];
   /** Module-specific public state (scenario, clue feed, tallies, ...) */
   module: unknown;
   /** URL phones should open (encoded in the TV QR code) */

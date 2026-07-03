@@ -254,6 +254,18 @@ function HostPanel({ room, send }: { room: PublicRoom; send: Send }) {
                       </button>
                     ))}
                   </div>
+                  <div className="host-section">Intensity</div>
+                  <div className="seg-row">
+                    {(["casual", "standard"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        className={s.dungeonIntensity === mode ? "primary" : ""}
+                        onClick={() => setSetting("dungeonIntensity", mode)}
+                      >
+                        {mode === "casual" ? "casual" : "standard (KOs)"}
+                      </button>
+                    ))}
+                  </div>
                 </>
               )}
               {room.moduleId === "whodunnit" && (

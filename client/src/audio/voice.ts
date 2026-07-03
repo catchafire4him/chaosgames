@@ -224,6 +224,9 @@ export class VoiceEngine {
 
 /** Looping lobby music (starts after the audio-enable gesture).
  *  Ducks under the host's voice so narration always cuts through. */
+/** played instead of a module's dedicated track if that file isn't present yet */
+const FALLBACK_MUSIC = "/audio/Midnight_Ledger.mp3";
+
 export class Music {
   private el: HTMLAudioElement | null = null;
   private base = 0.2;
@@ -238,6 +241,15 @@ export class Music {
     this.stop();
     this.el = new Audio(src);
     this.el.loop = true;
+    // per-module track not generated yet? fall back to the shared one rather
+    // than sitting in silence
+    this.el.onerror = () => {
+      if (!this.el || this.el.src.endsWith(FALLBACK_MUSIC)) return;
+      this.el.onerror = null;
+      this.el.src = FALLBACK_MUSIC;
+      this.apply();
+      void this.el.play().catch(() => {});
+    };
     this.apply();
     void this.el.play().catch(() => {});
   }

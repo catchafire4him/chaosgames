@@ -10,7 +10,7 @@ import type { GameModule, ToolParameters } from "../../engine/types.js";
  * character quirks together. Server owns all math.
  */
 
-type ActionKind = "brute" | "magic" | "chaos";
+type ActionKind = "brute" | "magic" | "chaos" | "situational";
 
 interface ClassDef {
   id: string;
@@ -49,7 +49,13 @@ const ACTION_LABEL: Record<ActionKind, string> = {
   brute: "Brute Force",
   magic: "Magic",
   chaos: "Pure Chaos",
+  situational: "Improvised Gambit", // overridden by the room's actual situational label when present
 };
+
+/** casual: no KOs, 3 actions. standard: comedic KOs + a Director-invented 4th action per room */
+function isStandard(room: Room): boolean {
+  return room.settings.dungeonIntensity === "standard";
+}
 
 const ROOM_COUNT = 5; // default; actual count comes from room.settings.dungeonRooms
 const roomsFor = (room: Room): number => room.settings.dungeonRooms ?? ROOM_COUNT;
@@ -126,6 +132,8 @@ interface RoomCard {
   title: string;
   description: string;
   challenge: string;
+  /** Standard intensity only: a 4th action option the Director invents per room */
+  situational?: { label: string; description: string } | null;
 }
 
 const S = (room: Room) =>
@@ -144,6 +152,8 @@ const S = (room: Room) =>
     stats?: { label: string; value: string }[] | null;
     items?: Item[];
     lastLoot?: Item | null;
+    /** true once the entire party is KO'd (standard intensity only) */
+    wiped?: boolean;
   };
 const D = (p: ServerPlayer) =>
   p.data as {
@@ -161,6 +171,9 @@ const D = (p: ServerPlayer) =>
     nat20s?: number;
     nat1s?: number;
     chaosPicks?: number;
+    /** standard intensity: rolled a natural 1 and is out for the rest of the run —
+     *  can no longer act but gets unlimited buff/sabotage charges as a heckler */
+    koed?: boolean;
     /** mad-libs hero forging */
     adjective?: string | null;
     sigItem?: string | null;
@@ -183,17 +196,30 @@ function names(room: Room, ids: string[]): string {
 
 // ─── Authoring ────────────────────────────────────────────────────────────────
 
-function roomSchema(): ToolParameters {
+function roomSchema(room: Room): ToolParameters {
+  const properties: ToolParameters["properties"] = {
+    title: { type: "string", description: "short evocative room name" },
+    description: { type: "string", description: "1-2 sentences describing the room" },
+    challenge: {
+      type: "string",
+      description: "the obstacle/monster/puzzle blocking the party, one sentence",
+    },
+  };
+  if (isStandard(room)) {
+    properties.situationalLabel = {
+      type: "string",
+      description:
+        "a punchy 2-4 word name for a 4th action option unique to THIS room's challenge " +
+        "(e.g. 'Negotiate', 'Flee the Scene', 'Bribe the Elemental') — distinct from Brute Force/Magic/Chaos",
+    };
+    properties.situationalDescription = {
+      type: "string",
+      description: "one short phrase describing what that 4th action means here",
+    };
+  }
   return {
     type: "object",
-    properties: {
-      title: { type: "string", description: "short evocative room name" },
-      description: { type: "string", description: "1-2 sentences describing the room" },
-      challenge: {
-        type: "string",
-        description: "the obstacle/monster/puzzle blocking the party, one sentence",
-      },
-    },
+    properties,
     required: ["title", "description", "challenge"],
   };
 }
@@ -253,33 +279,56 @@ function newRoom(room: Room): void {
     D(p).sabCharges = SAB_CHARGES;
   }
   room.setPhase("room_intro");
+  const standard = isStandard(room);
   room.play({
     id: "room_intro",
     urgent: true,
-    schema: roomSchema(),
+    schema: roomSchema(room),
     onAuthored: (r, data) => {
-      const d = data as Partial<RoomCard> | undefined;
+      const d = data as
+        | (Partial<RoomCard> & { situationalLabel?: string; situationalDescription?: string })
+        | undefined;
       if (!d?.title || !d.challenge) throw new Error("invalid room");
       S(r).currentRoom = {
         title: String(d.title).slice(0, 60),
         description: String(d.description ?? "").slice(0, 240),
         challenge: String(d.challenge).slice(0, 240),
+        situational:
+          standard && d.situationalLabel
+            ? {
+                label: String(d.situationalLabel).slice(0, 30),
+                description: String(d.situationalDescription ?? "").slice(0, 120),
+              }
+            : null,
       };
     },
     instruction:
       `The party enters room ${idx + 1} of ${roomsFor(room)}${idx === roomsFor(room) - 1 ? " — the FINAL room" : ""}. ` +
-      `Author it in \`data\` (title, description, challenge) — escalate the stakes and absurdity with depth. ` +
-      `Then narrate the party's entrance and the challenge in 2-3 vivid, funny lines.`,
+      `Author it in \`data\` (title, description, challenge` +
+      (standard ? ", situationalLabel, situationalDescription" : "") +
+      `) — escalate the stakes and absurdity with depth.` +
+      (standard
+        ? " This is STANDARD intensity: invent a 4th situational action option unique to this room, distinct from Brute Force/Magic/Chaos."
+        : "") +
+      ` Then narrate the party's entrance and the challenge in 2-3 vivid, funny lines.`,
     after: (r) => startTurn(r),
   });
   room.broadcast();
 }
 
+/** heroes still able to take a turn (excludes standard-intensity KOs) */
+function activeRoster(room: Room): ServerPlayer[] {
+  return room.alive().filter((p) => !D(p).koed);
+}
+
 function startTurn(room: Room): void {
   const s = S(room);
-  const alive = room.alive();
-  if (!alive.length) return;
-  const hero = alive[(s.turnIndex ?? 0) % alive.length];
+  const roster = activeRoster(room);
+  if (!roster.length) {
+    s.wiped = true;
+    return finale(room);
+  }
+  const hero = roster[(s.turnIndex ?? 0) % roster.length];
   s.activeId = hero.id;
   s.turn = {
     action: null,
@@ -319,7 +368,7 @@ function doRoll(room: Room): void {
   if (!turn || !hero) return;
 
   const roll = 1 + Math.floor(Math.random() * 20);
-  const affinityBonus = turn.action && D(hero).affinity === turn.action ? 2 : 0;
+  const affinityBonus = turn.action && turn.action !== "situational" && D(hero).affinity === turn.action ? 2 : 0;
   const itemBonus = turn.itemUsed?.effect === "power" ? 4 : 0;
   const sabotagePenalty = turn.itemUsed?.effect === "shield" ? 0 : turn.sabotages.length * 2;
   const modifier = affinityBonus + itemBonus + turn.buffs.length * 2 - sabotagePenalty;
@@ -336,6 +385,11 @@ function doRoll(room: Room): void {
   if (crit === "hit") D(hero).nat20s = (D(hero).nat20s ?? 0) + 1;
   if (crit === "fail") D(hero).nat1s = (D(hero).nat1s ?? 0) + 1;
   if (turn.action === "chaos") D(hero).chaosPicks = (D(hero).chaosPicks ?? 0) + 1;
+
+  // standard intensity: a natural 1 knocks the hero out for the rest of the run —
+  // they become an unlimited-charge heckler instead
+  const justKoed = crit === "fail" && isStandard(room);
+  if (justKoed) D(hero).koed = true;
   if (success) {
     s.successes = (s.successes ?? 0) + 1;
     D(hero).wins = (D(hero).wins ?? 0) + 1;
@@ -371,16 +425,25 @@ function doRoll(room: Room): void {
   const lootNote = s.lastLoot
     ? `The party LOOTED a new item: "${s.lastLoot.name}" — announce it with glee. `
     : "";
+  const actionLabel =
+    turn.action === "situational"
+      ? s.currentRoom?.situational?.label ?? "an improvised gambit"
+      : ACTION_LABEL[turn.action ?? "chaos"];
+  const koNote = justKoed
+    ? `${hero.name} is KNOCKED OUT COLD by this catastrophe — comedically, not gruesomely (they're fine, just ` +
+      `done for tonight). They become a permanent heckler on the sidelines for the rest of the run. Make their ` +
+      `KO the highlight of this narration. `
+    : "";
 
   room.play({
     id: "outcome",
     instruction:
-      `${hero.name} the ${D(hero).classLabel} (quirk: ${D(hero).quirk}) attempted ${ACTION_LABEL[turn.action ?? "chaos"]} ` +
+      `${hero.name} the ${D(hero).classLabel} (quirk: ${D(hero).quirk}) attempted ${actionLabel} ` +
       `against: ${s.currentRoom?.challenge ?? "the challenge"}. ` +
       `Rolled ${roll} on the d20${affinityBonus ? ` +${affinityBonus} class affinity` : ""}. ${itemNote}${meddling}` +
       `Final total ${total} vs difficulty ${turn.difficulty} → ${great ? "GREAT SUCCESS (spectacular — maximum glory)" : success ? "SUCCESS" : "FAILURE"}` +
       `${crit === "hit" ? " (NATURAL 20 — legendary!)" : crit === "fail" ? " (NATURAL 1 — catastrophic!)" : ""}. ` +
-      `Narrate the outcome in 2-3 hilarious lines, weaving in their quirk (${D(hero).adjective ?? "?"}) and their ` +
+      `${koNote}Narrate the outcome in 2-3 hilarious lines, weaving in their quirk (${D(hero).adjective ?? "?"}) and their ` +
       `signature item (${D(hero).sigItem ?? "?"}) if it's funny, and CALLING OUT the meddlers by name ` +
       `${turn.sabotages.length ? "(roast the saboteurs)" : ""}. ${lootNote}Keep the party moving.`,
     after: (r) => advance(r),
@@ -407,7 +470,7 @@ function finale(room: Room): void {
   const s = S(room);
   const wins = s.successes ?? 0;
   const losses = s.failures ?? 0;
-  const victorious = wins >= losses;
+  const victorious = !s.wiped && wins >= losses;
 
   // game-over stats
   const players = [...room.players.values()];
@@ -446,13 +509,18 @@ function finale(room: Room): void {
   room.play({
     id: "gameover",
     urgent: true,
-    instruction: victorious
-      ? `THE PARTY ESCAPES THE DUNGEON! Final tally: ${wins} triumphs, ${losses} disasters. Deliver a rousing ` +
-        `finale: recap the run's best and dumbest moments, crown an MVP and a "most chaotic" award, and send ` +
-        `them off. 4-6 lines.`
-      : `THE DUNGEON WINS. Final tally: ${wins} triumphs, ${losses} disasters — the party limps home in shame. ` +
-        `Eulogize their incompetence lovingly, name the worst roll and the most treacherous saboteur, and dare ` +
-        `them to try again. 4-6 lines.`,
+    instruction: s.wiped
+      ? `TOTAL PARTY WIPEOUT — every last hero has been knocked out cold. Final tally: ${wins} triumphs, ` +
+        `${losses} disasters. Deliver the most theatrical eulogy of your career: recap the run's best and ` +
+        `dumbest moments, crown a "last one standing (briefly)" and a "most chaotic" award, and dare them to ` +
+        `try again. 4-6 lines.`
+      : victorious
+        ? `THE PARTY ESCAPES THE DUNGEON! Final tally: ${wins} triumphs, ${losses} disasters. Deliver a rousing ` +
+          `finale: recap the run's best and dumbest moments, crown an MVP and a "most chaotic" award, and send ` +
+          `them off. 4-6 lines.`
+        : `THE DUNGEON WINS. Final tally: ${wins} triumphs, ${losses} disasters — the party limps home in shame. ` +
+          `Eulogize their incompetence lovingly, name the worst roll and the most treacherous saboteur, and dare ` +
+          `them to try again. 4-6 lines.`,
   });
   room.broadcast();
 }
@@ -489,6 +557,7 @@ export const dungeon: GameModule = {
       D(p).affinity = cls.affinity;
       D(p).buffCharges = BUFF_CHARGES;
       D(p).sabCharges = SAB_CHARGES;
+      D(p).koed = false;
       D(p).messages = [];
       D(p).forgeOptions = {
         adjectives: pickOptions(ADJECTIVES, 3),
@@ -544,7 +613,9 @@ export const dungeon: GameModule = {
       case "pick_action": {
         if (room.phase !== "action_pick" || !isActive || !s.turn) return;
         const a = String(action.action) as ActionKind;
-        if (!["brute", "magic", "chaos"].includes(a)) return;
+        const options: ActionKind[] = ["brute", "magic", "chaos"];
+        if (s.currentRoom?.situational) options.push("situational");
+        if (!options.includes(a)) return;
         s.turn.action = a;
         beginRoll(room);
         return;
@@ -569,18 +640,20 @@ export const dungeon: GameModule = {
         if (isActive || !s.turn) return;
         const kind = action.spendKind === "sabotage" ? "sabotage" : "buff";
         const d = D(player);
+        // standard-intensity KO'd heroes become unlimited-charge hecklers
+        const unlimited = !!d.koed;
         const pool = kind === "buff" ? (d.buffCharges ?? 0) : (d.sabCharges ?? 0);
-        if (pool <= 0) return;
+        if (!unlimited && pool <= 0) return;
         // net swing cap ±6 per roll — attempts past the cap are refused
         const buffs = s.turn.buffs.length + (kind === "buff" ? 1 : 0);
         const sabs = s.turn.sabotages.length + (kind === "sabotage" ? 1 : 0);
         const net = buffs * 2 - sabs * 2;
         if (net > SPECTATOR_NET_CAP || net < -SPECTATOR_NET_CAP) return;
         if (kind === "buff") {
-          d.buffCharges = pool - 1;
+          if (!unlimited) d.buffCharges = pool - 1;
           d.buffsGiven = (d.buffsGiven ?? 0) + 1;
         } else {
-          d.sabCharges = pool - 1;
+          if (!unlimited) d.sabCharges = pool - 1;
           d.sabsGiven = (d.sabsGiven ?? 0) + 1;
         }
         (kind === "buff" ? s.turn.buffs : s.turn.sabotages).push(playerId);
@@ -614,6 +687,7 @@ export const dungeon: GameModule = {
     } else if (label === "action_pick" && room.phase === "action_pick" && s.turn) {
       // hero froze — the dungeon picks for them
       const options: ActionKind[] = ["brute", "magic", "chaos"];
+      if (s.currentRoom?.situational) options.push("situational");
       s.turn.action = options[Math.floor(Math.random() * options.length)];
       beginRoll(room);
     } else if (label === "roll" && room.phase === "rolling") {
@@ -659,6 +733,7 @@ export const dungeon: GameModule = {
             classLabel: D(p).classLabel ?? "?",
             portrait: D(p).portrait ?? "rogue_m",
             charges: (D(p).buffCharges ?? 0) + (D(p).sabCharges ?? 0),
+            koed: D(p).koed ?? false,
           },
         ]),
       ),
@@ -683,6 +758,7 @@ export const dungeon: GameModule = {
       affinity: d.affinity ?? null,
       buffCharges: d.buffCharges ?? 0,
       sabCharges: d.sabCharges ?? 0,
+      koed: d.koed ?? false,
       isActive: s.activeId === playerId,
       messages: d.messages ?? [],
     };
@@ -695,7 +771,8 @@ export const dungeon: GameModule = {
         (p) =>
           `- ${p.name} (id:${p.id}) — the ${D(p).adjective ?? ""} ${D(p).classLabel} (${D(p).quirk}), ` +
           `carrying ${D(p).sigItem ?? "nothing notable"}, motivation "${D(p).backstory ?? "?"}", ` +
-          `affinity ${D(p).affinity}, ▲${D(p).buffCharges ?? 0}/▼${D(p).sabCharges ?? 0} charges`,
+          `affinity ${D(p).affinity}, ▲${D(p).buffCharges ?? 0}/▼${D(p).sabCharges ?? 0} charges` +
+          (D(p).koed ? " — KO'D, now a heckler with unlimited charges" : ""),
       )
       .join("\n");
     return (

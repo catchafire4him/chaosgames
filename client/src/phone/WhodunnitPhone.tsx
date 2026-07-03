@@ -19,7 +19,13 @@ interface WhodunnitYou {
 
 interface WhodunnitPublic {
   locations: { id: string; name: string }[];
-  trial: { accusedId: string; accusedName: string; alibi: string | null } | null;
+  trial: {
+    accusedId: string;
+    accusedName: string;
+    alibi: string | null;
+    counterAccusedId: string | null;
+    counterAccusedName: string | null;
+  } | null;
   alibiOptions: string[];
   round: number;
   maxRounds: number;
@@ -180,12 +186,45 @@ export function WhodunnitPhone({
                 </div>
               </>
             )}
+            {trial.counterAccusedId ? (
+              <p className="phone-hint" style={{ color: "var(--danger)" }}>
+                ☝️ You've pointed the finger at {trial.counterAccusedName}. No take-backs.
+              </p>
+            ) : (
+              <>
+                <p className="phone-hint" style={{ marginTop: 10 }}>
+                  Feeling bold? Point the finger right back at someone:
+                </p>
+                <div className="target-list">
+                  {room.players
+                    .filter((p) => p.id !== me.id && p.status === "alive")
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        className="target-btn"
+                        onClick={() => act({ kind: "counter_accuse", targetId: p.id })}
+                      >
+                        <img src={avatarSrc(p.avatar)} alt="" />
+                        <span>
+                          ☝️ {p.name}
+                          {p.tag ? <em style={{ color: "var(--accent)" }}> — {p.tag}</em> : null}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
           </>
         );
       }
       return (
         <>
           <div className="phone-title">⚖️ {trial.accusedName} — guilty?</div>
+          {trial.counterAccusedName && (
+            <p className="phone-hint" style={{ color: "var(--danger)" }}>
+              ☝️ They're pointing the finger at {trial.counterAccusedName}!
+            </p>
+          )}
           <button
             className={y.verdictVote === "guilty" ? "danger" : ""}
             style={y.verdictVote === "guilty" ? {} : { background: "#3a2430" }}

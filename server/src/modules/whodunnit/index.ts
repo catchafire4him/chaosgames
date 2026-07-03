@@ -41,6 +41,8 @@ interface Scenario {
 interface Trial {
   accusedId: string;
   alibi: string | null;
+  /** the accused may point the finger right back at someone else */
+  counterAccusedId: string | null;
 }
 interface Outcome {
   name: string;
@@ -304,7 +306,7 @@ function resolveAccusation(room: Room): void {
   }
 
   const accused = room.players.get(top)!;
-  S(room).trial = { accusedId: accused.id, alibi: null };
+  S(room).trial = { accusedId: accused.id, alibi: null, counterAccusedId: null };
   room.setPhase("verdict");
   accused.spotlight = true;
   room.play({
@@ -312,8 +314,9 @@ function resolveAccusation(room: Room): void {
     urgent: true,
     instruction:
       `${accused.name} (playing ${D(accused).character?.name ?? "themselves"}) stands accused of the murder! ` +
-      `Put them on the spot theatrically — demand their alibi (they'll answer on their phone) — then command ` +
-      `everyone else to vote GUILTY or INNOCENT. 2-4 lines, maximum drama.`,
+      `Put them on the spot theatrically — demand their alibi, and dare them to point the finger at someone ` +
+      `else if they're bold enough (they'll answer on their phone) — then command everyone else to vote ` +
+      `GUILTY or INNOCENT. 2-4 lines, maximum drama.`,
     after: (r) => {
       if (r.phase === "verdict") r.setTimer("verdict", VERDICT_MS);
     },
@@ -561,6 +564,34 @@ export const whodunnit: GameModule = {
         });
         return;
       }
+      case "counter_accuse": {
+        if (room.phase !== "verdict") return;
+        const trial = S(room).trial;
+        if (!trial || trial.accusedId !== player.id || trial.counterAccusedId) return;
+        const target = room.players.get(String(action.targetId));
+        if (!target || target.id === player.id || target.status !== "alive") return;
+        trial.counterAccusedId = target.id;
+        // the accusation lingers into future rounds as a public clue, whether or not it's true
+        const clues = (S(room).clues ??= []);
+        clues.push({
+          round: room.round,
+          locationId: "generic",
+          text:
+            `On trial, ${D(player).character?.name ?? player.name} desperately pointed the finger at ` +
+            `${D(target).character?.name ?? target.name}, insisting THEY are the real killer.`,
+        });
+        room.play({
+          id: "counter_accuse_react",
+          urgent: true,
+          instruction:
+            `SHOCKING TWIST: ${player.name} (as ${D(player).character?.name ?? "themselves"}), on trial for ` +
+            `their life, just turned and pointed the finger right back at ${target.name} (as ` +
+            `${D(target).character?.name ?? "themselves"}), claiming THEY are the real killer! Deliver this ` +
+            `courtroom bombshell with maximum drama — the room gasps. Do NOT reveal who is actually guilty. ` +
+            `Remind everyone the vote on ${player.name} is still happening. 2-3 lines.`,
+        });
+        return;
+      }
       case "verdict_vote": {
         if (room.phase !== "verdict") return;
         const trial = S(room).trial;
@@ -611,6 +642,8 @@ export const whodunnit: GameModule = {
             accusedCharacter:
               D(room.players.get(trial.accusedId)!)?.character?.name ?? null,
             alibi: trial.alibi,
+            counterAccusedId: trial.counterAccusedId,
+            counterAccusedName: trial.counterAccusedId ? room.name(trial.counterAccusedId) : null,
             votesIn: room
               .alive()
               .filter((p) => p.id !== trial.accusedId && p.done).length,
@@ -684,7 +717,8 @@ export const whodunnit: GameModule = {
       `CAST (you know everything; NEVER reveal the killer before the revelation):\n${roster}\n` +
       (clueLog ? `CLUES REVEALED SO FAR:\n${clueLog}\n` : "") +
       (trial
-        ? `ON TRIAL: ${room.name(trial.accusedId)}${trial.alibi ? ` — their alibi: "${trial.alibi}"` : " (no alibi given yet)"}\n`
+        ? `ON TRIAL: ${room.name(trial.accusedId)}${trial.alibi ? ` — their alibi: "${trial.alibi}"` : " (no alibi given yet)"}` +
+          `${trial.counterAccusedId ? ` — and they've counter-accused ${room.name(trial.counterAccusedId)}!` : ""}\n`
         : "")
     );
   },
@@ -715,6 +749,10 @@ export const whodunnit: GameModule = {
       case "alibi_react":
         return [
           { text: `"${s.trial?.alibi ?? "no comment"}" — a likely story.`, mood: "wry" },
+        ];
+      case "counter_accuse_react":
+        return [
+          { text: `The accused turns and points — right at ${room.name(s.trial?.counterAccusedId)}! The room gasps.`, mood: "dramatic" },
         ];
       case "banter":
         return [{ text: "Tick tock, detectives. The killer thanks you for your leisurely pace.", mood: "wry" }];

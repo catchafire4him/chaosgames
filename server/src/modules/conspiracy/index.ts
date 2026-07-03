@@ -14,6 +14,8 @@ import type { GameModule } from "../../engine/types.js";
  * - detective        learns one player's alignment per night
  * - vigilante        one bullet; shooting an innocent = death by guilt next night
  * - jester           neutral — wins ONLY by getting voted out
+ * - mayor            town-aligned; their vote counts as TWO
+ * - consigliere      conspiracy-aligned; learns a player's EXACT role each night
  * - innocent         votes, panics, survives (ideally)
  */
 
@@ -24,9 +26,11 @@ type Role =
   | "detective"
   | "vigilante"
   | "jester"
+  | "mayor"
+  | "consigliere"
   | "innocent";
 
-const CONSPIRACY_TEAM: Role[] = ["conspirator", "godfather"];
+const CONSPIRACY_TEAM: Role[] = ["conspirator", "godfather", "consigliere"];
 
 interface Death {
   name: string;
@@ -74,13 +78,20 @@ function isConspiracy(p: ServerPlayer): boolean {
   return CONSPIRACY_TEAM.includes(D(p).role ?? "innocent");
 }
 
+/** the mayor's vote counts as two */
+function voteWeight(p: ServerPlayer): number {
+  return D(p).role === "mayor" ? 2 : 1;
+}
+
 interface Scaling {
-  conspirators: number; // total conspiracy team size (godfather included)
+  conspirators: number; // total conspiracy team size (godfather/consigliere included)
   godfather: boolean;
+  consigliere: boolean;
   doctor: boolean;
   detectives: number;
   vigilante: boolean;
   jester: boolean;
+  mayor: boolean;
 }
 
 function scalingFor(n: number, mode: "classic" | "full"): Scaling {
@@ -89,10 +100,12 @@ function scalingFor(n: number, mode: "classic" | "full"): Scaling {
   return {
     conspirators,
     godfather: full && conspirators >= 2,
+    consigliere: full && n >= 13,
     doctor: n >= 5,
     detectives: n >= 13 ? 2 : 1,
     vigilante: full && n >= 9,
     jester: full && n >= 8,
+    mayor: full && n >= 11,
   };
 }
 
@@ -118,6 +131,7 @@ function nightActors(room: Room): ServerPlayer[] {
       case "godfather":
       case "doctor":
       case "detective":
+      case "consigliere":
         return true;
       case "vigilante":
         return !d.bulletUsed && !d.guilt;
@@ -241,6 +255,17 @@ function resolveNight(room: Room): void {
     }
   }
 
+  // 5. the consigliere's exact-role check
+  const consiglieri = aliveWithRole(room, "consigliere");
+  for (const c of consiglieri) {
+    const suspectId = D(c).pick;
+    const suspect = suspectId ? room.players.get(suspectId) : undefined;
+    if (suspect) {
+      D(c).nightResult = `${suspect.name} is secretly the ${(D(suspect).role ?? "innocent").toUpperCase()}.`;
+      room.whisper(c.id, D(c).nightResult!);
+    }
+  }
+
   if (checkGameOver(room)) return;
 
   room.setPhase("day");
@@ -304,8 +329,9 @@ function resolveVote(room: Room): void {
   for (const p of room.alive()) {
     const v = D(p).vote;
     if (v && v !== "abstain" && room.players.get(v)?.status === "alive") {
-      tally.set(v, (tally.get(v) ?? 0) + 1);
-      counts[v] = (counts[v] ?? 0) + 1;
+      const weight = voteWeight(p);
+      tally.set(v, (tally.get(v) ?? 0) + weight);
+      counts[v] = (counts[v] ?? 0) + weight;
     }
   }
   let top: string | null = null;
@@ -412,7 +438,10 @@ function checkGameOver(room: Room): boolean {
 
   const teamNames = [...room.players.values()]
     .filter(isConspiracy)
-    .map((p) => `${p.name}${D(p).role === "godfather" ? " (the GODFATHER)" : ""}`)
+    .map(
+      (p) =>
+        `${p.name}${D(p).role === "godfather" ? " (the GODFATHER)" : D(p).role === "consigliere" ? " (the CONSIGLIERE)" : ""}`,
+    )
     .join(", ");
   room.play({
     id: "gameover",
@@ -457,11 +486,13 @@ export const conspiracy: GameModule = {
 
     const roles: Role[] = [];
     if (sc.godfather) roles.push("godfather");
+    if (sc.consigliere) roles.push("consigliere");
     while (roles.length < sc.conspirators) roles.push("conspirator");
     for (let i = 0; i < sc.detectives; i++) roles.push("detective");
     if (sc.doctor) roles.push("doctor");
     if (sc.vigilante) roles.push("vigilante");
     if (sc.jester) roles.push("jester");
+    if (sc.mayor) roles.push("mayor");
     while (roles.length < n) roles.push("innocent");
 
     players.forEach((p, i) => {
@@ -478,7 +509,9 @@ export const conspiracy: GameModule = {
       ...(sc.doctor ? ["a doctor"] : []),
       ...(sc.vigilante ? ["a vigilante"] : []),
       ...(sc.jester ? ["a jester"] : []),
+      ...(sc.mayor ? ["a mayor"] : []),
       ...(sc.godfather ? ["a godfather"] : []),
+      ...(sc.consigliere ? ["a consigliere"] : []),
     ];
     s.lastDawn = null;
     s.lastVerdict = null;
@@ -684,7 +717,9 @@ export const conspiracy: GameModule = {
     return (
       `GAME: Conspiracy — round ${room.round}, phase ${room.phase}.\n` +
       `SPECIAL ROLES IN PLAY: ${(s.rolesList ?? []).join(", ")}. Note: the godfather reads as ` +
-      `INNOCENT to the detective; the jester wins only by being voted out.\n` +
+      `INNOCENT to the detective; the jester wins only by being voted out; the mayor's vote counts ` +
+      `as two (you may narrate their vote as carrying extra weight without naming them); the ` +
+      `consigliere learns a player's exact role each night.\n` +
       `PLAYERS (you know every secret; NEVER reveal roles unless instructed):\n${roster}\n` +
       (events.length ? `RECENT EVENTS: ${events.join(" ")}` : "")
     );

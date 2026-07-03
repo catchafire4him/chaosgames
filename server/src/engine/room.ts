@@ -56,6 +56,14 @@ export class Room {
   nightLog: string[] = [];
   private gamesPlayed = 0;
 
+  /** running points across every game played in this room tonight, by player id.
+   *  Survives play-again and switch-module — it's a whole game-night score. */
+  private scoreboard = new Map<string, number>();
+
+  private awardPoints(playerId: string, points: number): void {
+    this.scoreboard.set(playerId, (this.scoreboard.get(playerId) ?? 0) + points);
+  }
+
   /** the party host — first player to join; may issue host_command */
   hostPlayerId: string | null = null;
 
@@ -126,6 +134,9 @@ export class Room {
         break;
       case "dungeonRooms":
         if (["4", "5", "7"].includes(value)) s.dungeonRooms = Number(value);
+        break;
+      case "dungeonIntensity":
+        if (["casual", "standard"].includes(value)) s.dungeonIntensity = value;
         break;
       case "mysteryRounds":
         if (["2", "3", "4"].includes(value)) s.mysteryRounds = Number(value);
@@ -260,6 +271,10 @@ export class Room {
           : null,
       module: this.started ? this.module.publicState(this) : null,
       joinUrl: this.joinUrl,
+      scoreboard: [...this.players.values()]
+        .map((p) => ({ playerId: p.id, name: p.name, avatar: p.avatar, points: this.scoreboard.get(p.id) ?? 0 }))
+        .filter((s) => s.points > 0)
+        .sort((a, b) => b.points - a.points),
     };
   }
 
@@ -384,6 +399,12 @@ export class Room {
   endGame(winnerNames: string[]): void {
     this.winners = winnerNames;
     this.gamesPlayed++;
+    // scoring: +1 for everyone who played, +3 bonus for each name in winnerNames
+    for (const p of this.players.values()) this.awardPoints(p.id, 1);
+    for (const name of winnerNames) {
+      const winner = [...this.players.values()].find((p) => p.name === name);
+      if (winner) this.awardPoints(winner.id, 3);
+    }
     this.nightLog.push(
       `Game ${this.gamesPlayed} — ${this.module.name}: ` +
         (winnerNames.length ? `${winnerNames.join(", ")} won` : "nobody won") +

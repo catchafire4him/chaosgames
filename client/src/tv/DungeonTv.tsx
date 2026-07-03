@@ -7,7 +7,12 @@ interface DungeonPublic {
   encounterInRoom: number;
   encountersPerRoom: number;
   roomArt: string;
-  currentRoom: { title: string; description: string; challenge: string } | null;
+  currentRoom: {
+    title: string;
+    description: string;
+    challenge: string;
+    situational?: { label: string; description: string } | null;
+  } | null;
   activeId: string | null;
   activeName: string | null;
   turn: {
@@ -25,7 +30,7 @@ interface DungeonPublic {
   } | null;
   items: { id: string; name: string; effect: string }[];
   score: { successes: number; failures: number };
-  heroes: Record<string, { classLabel: string; portrait: string; charges: number }>;
+  heroes: Record<string, { classLabel: string; portrait: string; charges: number; koed: boolean }>;
 }
 
 export function DungeonTv({ room }: { room: PublicRoom }) {
@@ -79,6 +84,12 @@ export function DungeonTv({ room }: { room: PublicRoom }) {
         <div className="room-card fade-in" key={m.currentRoom.title}>
           <div className="room-title title-font">{m.currentRoom.title}</div>
           <div className="room-challenge">{m.currentRoom.challenge}</div>
+          {m.currentRoom.situational && (
+            <div className="tv-sub" style={{ fontSize: 15, marginTop: 6 }}>
+              🎭 4th option: <b style={{ color: "var(--accent)" }}>{m.currentRoom.situational.label}</b>
+              {m.currentRoom.situational.description && ` — ${m.currentRoom.situational.description}`}
+            </div>
+          )}
         </div>
       )}
 
@@ -92,6 +103,7 @@ export function DungeonTv({ room }: { room: PublicRoom }) {
           <div className="hero-panel">
             <div className="hero-name">
               {hero.name} <em>the {heroInfo.classLabel}</em>
+              {heroInfo.koed && <span style={{ color: "var(--danger)", marginLeft: 10 }}>💀 KO'D</span>}
             </div>
             {room.phase === "action_pick" && (
               <div className="tv-sub">is choosing an approach…</div>
@@ -138,6 +150,12 @@ export function DungeonTv({ room }: { room: PublicRoom }) {
           </div>
         </div>
       )}
+
+      <PlayerGrid
+        room={room}
+        art={moduleArt(room)}
+        badge={(p) => (m.heroes[p.id]?.koed ? "💀 heckling" : `⚡${m.heroes[p.id]?.charges ?? 0}`)}
+      />
 
       {m.items.length > 0 && (
         <div className="inventory-row">

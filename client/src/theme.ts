@@ -42,7 +42,7 @@ const THEMES: Record<ModuleId, Theme> = {
       ended: "/img/bg/revelation.png",
     },
     fallbackBg: "/img/bg/day.png",
-    music: "/audio/Midnight_Ledger.mp3",
+    music: "/audio/conspiracy-theme.mp3",
   },
   whodunnit: {
     id: "whodunnit",
@@ -57,7 +57,7 @@ const THEMES: Record<ModuleId, Theme> = {
       ended: "/img/bg/revelation.png",
     },
     fallbackBg: "/img/locations/generic.png",
-    music: "/audio/Midnight_Ledger.mp3",
+    music: "/audio/whodunnit-theme.mp3",
   },
   dungeon: {
     id: "dungeon",
@@ -66,7 +66,7 @@ const THEMES: Record<ModuleId, Theme> = {
       ended: "/img/dnd/rooms/room_5.png",
     },
     fallbackBg: "/img/dnd/rooms/room_1.png",
-    music: "/audio/Midnight_Ledger.mp3",
+    music: "/audio/dungeon-theme.mp3",
     dynamicBg: (room) => {
       const art = (room.module as { roomArt?: string } | null)?.roomArt;
       return art ? `/img/dnd/rooms/${art}.png` : undefined;

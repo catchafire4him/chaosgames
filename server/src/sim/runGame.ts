@@ -8,7 +8,7 @@
  * Set DIRECTOR=gemini + GEMINI_API_KEY to smoke-test real AI authoring.
  */
 import "dotenv/config";
-import type { ModuleId, PlayerAction } from "../../../shared/src/index.js";
+import type { ModuleId, PlayerAction, RoomSettings } from "../../../shared/src/index.js";
 import { GeminiDirector } from "../director/gemini.js";
 import { MockDirector } from "../director/mock.js";
 import type { Director } from "../director/types.js";
@@ -19,6 +19,7 @@ import { getModule } from "../modules/registry.js";
 const BOT_NAMES = [
   "Ada", "Bruno", "Cleo", "Dex", "Edie", "Finn",
   "Gus", "Hana", "Iggy", "Juno", "Kip", "Lola",
+  "Milo", "Nia", "Otto", "Pia",
 ];
 
 function act(room: Room, playerId: string, action: PlayerAction): void {
@@ -119,7 +120,11 @@ function botTick(room: Room): void {
   }
 }
 
-async function runGame(moduleId: ModuleId, playerCount: number): Promise<void> {
+async function runGame(
+  moduleId: ModuleId,
+  playerCount: number,
+  settingsOverride?: Partial<RoomSettings>,
+): Promise<void> {
   const module = getModule(moduleId)!;
   const apiKey = process.env.GEMINI_API_KEY;
   const director: Director =
@@ -129,8 +134,12 @@ async function runGame(moduleId: ModuleId, playerCount: number): Promise<void> {
 
   const room = new Room(rid("rm"), "SIMX", module, director, new NullSpeaker(), "http://sim");
   for (let i = 0; i < playerCount; i++) room.addPlayer(BOT_NAMES[i]);
+  if (settingsOverride) Object.assign(room.settings, settingsOverride);
 
-  console.log(`\n=== SIM: ${moduleId} with ${playerCount} bots (director=${director.kind}) ===`);
+  console.log(
+    `\n=== SIM: ${moduleId} with ${playerCount} bots (director=${director.kind}` +
+      `${settingsOverride ? `, settings=${JSON.stringify(settingsOverride)}` : ""}) ===`,
+  );
   room.started = true;
   module.setup(room);
 
@@ -159,14 +168,16 @@ async function runGame(moduleId: ModuleId, playerCount: number): Promise<void> {
 }
 
 const only = process.argv[2] as ModuleId | undefined;
-const runs: [ModuleId, number][] = [
-  ["conspiracy", 10], // big enough for godfather + vigilante + jester
+const runs: [ModuleId, number, Partial<RoomSettings>?][] = [
+  ["conspiracy", 10], // godfather + vigilante + jester
+  ["conspiracy", 14], // + mayor + consigliere
   ["whodunnit", 8], // big enough for an accomplice
   ["dungeon", 5],
+  ["dungeon", 5, { dungeonIntensity: "standard" }], // exercise KOs + situational action
 ];
-for (const [id, count] of runs) {
+for (const [id, count, settings] of runs) {
   if (only && only !== id) continue;
-  await runGame(id, count);
+  await runGame(id, count, settings);
 }
 console.log("\nAll sims passed.");
 process.exit(0);

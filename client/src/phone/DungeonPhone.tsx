@@ -15,6 +15,7 @@ interface DungeonYou {
   affinity: "brute" | "magic" | "chaos" | null;
   buffCharges: number;
   sabCharges: number;
+  koed: boolean;
   isActive: boolean;
   messages: string[];
 }
@@ -33,7 +34,11 @@ interface DungeonPublic {
     roll: number | null;
     itemUsed: Item | null;
   } | null;
-  currentRoom: { title: string; challenge: string } | null;
+  currentRoom: {
+    title: string;
+    challenge: string;
+    situational?: { label: string; description: string } | null;
+  } | null;
   items: Item[];
 }
 
@@ -127,8 +132,13 @@ export function DungeonPhone({
       {y.sigItem && <div className="role-desc">Carrying: {y.sigItem}</div>}
       {y.backstory && <div className="role-desc" style={{ fontStyle: "italic" }}>“{y.backstory}”</div>}
       <div className="role-desc" style={{ color: "var(--accent)" }}>
-        ▲{y.buffCharges} bless · ▼{y.sabCharges} sabotage · affinity: {y.affinity}
+        {y.koed ? "▲∞ bless · ▼∞ sabotage (heckler)" : `▲${y.buffCharges} bless · ▼${y.sabCharges} sabotage`} · affinity: {y.affinity}
       </div>
+      {y.koed && (
+        <div className="role-desc" style={{ color: "var(--danger)", fontWeight: "bold" }}>
+          💀 Knocked out — you're a permanent heckler for the rest of the run.
+        </div>
+      )}
     </div>
   );
 
@@ -225,6 +235,20 @@ export function DungeonPhone({
                 </span>
               </button>
             ))}
+            {m.currentRoom?.situational && (
+              <button
+                className="target-btn action-btn"
+                onClick={() => act({ kind: "pick_action", action: "situational" })}
+              >
+                <span style={{ fontSize: 30 }}>🎭</span>
+                <span>
+                  {m.currentRoom.situational.label}
+                  {m.currentRoom.situational.description && (
+                    <em style={{ color: "var(--ink-dim)" }}> — {m.currentRoom.situational.description}</em>
+                  )}
+                </span>
+              </button>
+            )}
           </div>
           <UseItems />
         </>
@@ -267,29 +291,34 @@ export function DungeonPhone({
     );
   }
 
-  // Spectator
+  // Spectator (or a KO'd heckler, in standard intensity)
   if (room.phase === "action_pick" || room.phase === "rolling") {
+    const heckler = !!y.koed;
     return (
       <>
         <div className="phone-title">{m.activeName} faces the trial</div>
-        <p className="phone-hint">
-          Spend charges to tilt their fate — they refill every room.
-        </p>
+        {heckler ? (
+          <p className="phone-hint" style={{ color: "var(--accent)" }}>
+            💀 You're knocked out — but as a ghostly heckler you have UNLIMITED charges. Go wild.
+          </p>
+        ) : (
+          <p className="phone-hint">Spend charges to tilt their fate — they refill every room.</p>
+        )}
         <button
           className="primary"
           style={{ fontSize: 20, padding: "18px" }}
-          disabled={(y.buffCharges ?? 0) <= 0}
+          disabled={!heckler && (y.buffCharges ?? 0) <= 0}
           onClick={() => act({ kind: "spend", spendKind: "buff" })}
         >
-          ▲ BLESS (+2) — {y.buffCharges} left
+          ▲ BLESS (+2) — {heckler ? "∞" : y.buffCharges} left
         </button>
         <button
           className="danger"
           style={{ fontSize: 20, padding: "18px" }}
-          disabled={(y.sabCharges ?? 0) <= 0}
+          disabled={!heckler && (y.sabCharges ?? 0) <= 0}
           onClick={() => act({ kind: "spend", spendKind: "sabotage" })}
         >
-          ▼ SABOTAGE (−2) — {y.sabCharges} left
+          ▼ SABOTAGE (−2) — {heckler ? "∞" : y.sabCharges} left
         </button>
       </>
     );

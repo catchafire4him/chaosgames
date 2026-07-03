@@ -52,6 +52,13 @@ Then in the Railway dashboard set variables:
 
 The QR code on the TV encodes `PUBLIC_URL`, so phones on any network can join.
 
+## Per-module ambient music
+Each mode looks for its own track (`client/public/audio/conspiracy-theme.mp3`,
+`whodunnit-theme.mp3`, `dungeon-theme.mp3`); missing ones automatically fall
+back to the shared `Midnight_Ledger.mp3`, so nothing breaks before you add
+real tracks. Ready-to-paste generation prompts for each mode's mood are in
+[`client/public/audio/AUDIO_PROMPTS.md`](client/public/audio/AUDIO_PROMPTS.md).
+
 ## Adding a game mode
 Implement `GameModule` (see `server/src/engine/types.ts`) in a new folder under
 `server/src/modules/`, register it in `modules/registry.ts`, add TV/phone

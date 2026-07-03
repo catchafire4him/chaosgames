@@ -18,6 +18,8 @@ interface WhodunnitPublic {
     accusedName: string;
     accusedCharacter: string | null;
     alibi: string | null;
+    counterAccusedId: string | null;
+    counterAccusedName: string | null;
     votesIn: number;
     jurors: number;
   } | null;
@@ -125,6 +127,11 @@ export function WhodunnitTv({ room }: { room: PublicRoom }) {
         <div className="tv-sub" style={{ fontStyle: "italic", fontSize: 28 }}>
           {m.trial.alibi ? `“${m.trial.alibi}”` : "Awaiting their alibi..."}
         </div>
+        {m.trial.counterAccusedName && (
+          <div className="tv-banner fade-in" style={{ fontSize: 30, color: "var(--danger)" }}>
+            ☝️ points the finger at {m.trial.counterAccusedName}!
+          </div>
+        )}
         <div className="tv-sub">
           {m.trial.votesIn}/{m.trial.jurors} verdicts in — guilty or innocent?
         </div>

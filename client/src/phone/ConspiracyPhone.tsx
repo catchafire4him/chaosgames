@@ -12,6 +12,8 @@ interface ConspiracyYou {
     | "detective"
     | "vigilante"
     | "jester"
+    | "mayor"
+    | "consigliere"
     | "innocent"
     | null;
   allies: string[];
@@ -60,6 +62,17 @@ const ROLE_INFO: Record<string, { title: string; desc: string; bad?: boolean }> 
     desc:
       "You play no side. You win ONLY if the town votes you out. " +
       "Act suspicious — but not TOO suspicious. Make them want to banish you.",
+  },
+  mayor: {
+    title: "Mayor",
+    desc: "Your word carries weight — literally. Your vote counts as TWO during every vote.",
+  },
+  consigliere: {
+    title: "Consigliere",
+    desc:
+      "Advisor to the conspiracy. Each night, investigate someone to learn their EXACT role — " +
+      "sharper intel than the detective ever gets.",
+    bad: true,
   },
   innocent: {
     title: "Innocent",
@@ -221,7 +234,9 @@ export function ConspiracyPhone({
           ? "Choose someone to protect"
           : role === "vigilante"
             ? "Take your shot — or hold your fire"
-            : "Choose someone to investigate";
+            : role === "consigliere"
+              ? "Choose someone to learn the EXACT role of"
+              : "Choose someone to investigate";
       return (
         <>
           <div className="phone-title">🌙 {prompt}</div>
@@ -235,7 +250,7 @@ export function ConspiracyPhone({
           )}
           <TargetList
             selectedId={y.pick}
-            exclude={(p) => isTeam && (y.allies ?? []).includes(p.name)}
+            exclude={(p) => (isTeam || role === "consigliere") && (y.allies ?? []).includes(p.name)}
             onPick={(id) => act({ kind: "night_pick", targetId: id })}
           />
           {role === "vigilante" && (
@@ -274,6 +289,11 @@ export function ConspiracyPhone({
       return (
         <>
           <div className="phone-title">⚖️ Vote to banish</div>
+          {role === "mayor" && (
+            <p className="phone-hint" style={{ color: "var(--accent)" }}>
+              👑 Your vote counts as TWO.
+            </p>
+          )}
           <TargetList selectedId={y.vote} onPick={(id) => act({ kind: "vote", targetId: id })} />
           <button
             className={y.vote === "abstain" ? "primary" : ""}

@@ -222,6 +222,18 @@ input {
 .qr-panel img { width: 190px; height: 190px; border-radius: 10px; background: #fff; padding: 8px; }
 .room-code { font-size: 74px; letter-spacing: 0.35em; color: var(--accent); font-weight: bold; }
 
+.scoreboard-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 320px;
+  max-width: 460px;
+}
+
 .stats-panel {
   background: var(--panel);
   border: 1px solid var(--line);
