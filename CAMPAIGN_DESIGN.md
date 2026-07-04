@@ -348,6 +348,17 @@ cost saver second.
   by another process this session). Still on campaign branch; nothing merged.
   Next: phase 3 (task #29, rules engine) — or the auth slice (#35) which is
   now unblocked.
+  BRANCH STATE for the phase-8 merge agent: `master` holds the live MVP +
+  the audio-mixer/slider work (currently at a "resolve slider thumb…" commit)
+  and contains ZERO campaign code — verified via `git log master..campaign`.
+  The `campaign` branch was cut from an EARLIER slider commit, so
+  client/src/pages/Tv.tsx and client/src/styles.css DIVERGE between the two
+  branches (both touched the audio-mixer markup/CSS). My campaign edits to
+  those two files are purely additive (a CampaignTv import+switch branch; an
+  appended `[data-theme="campaign"]` + campaign component CSS block). At merge
+  time, take MASTER's version of the audio-mixer/slider code and re-apply
+  those two additive campaign hunks on top. Everything else on campaign is new
+  files or non-overlapping edits.
 
 ## 8. Open questions (to settle before/while building)
 
