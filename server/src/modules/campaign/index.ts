@@ -3,9 +3,10 @@ import type { Room, ServerPlayer } from "../../engine/room.js";
 import type { GameModule } from "../../engine/types.js";
 import {
   ADJECTIVES, BACKSTORIES, CLASSES, CLASS_BY_ID, SIGNATURE_ITEMS, STAT_ARRAY,
-  buildHero, classForAvatar,
+  buildHero, classForAvatar, sexForAvatar,
   type Ability, type Hero, type Stat,
 } from "./heroes.js";
+import { CAMPAIGN_ART_STYLE, getOrCreateAsset } from "../../artist/index.js";
 import {
   combatPrivate, combatPublic, heroAction, onTurnTimeout, setEncounterEndHandler, startEncounter,
   type EnemySpec,
@@ -253,7 +254,7 @@ function heroCard(p: ServerPlayer): unknown {
   return {
     id: p.id, name: p.name, avatar: p.avatar, connected: p.connected, ready: !!h,
     cls: h?.cls ?? null, level: h?.level ?? null, hp: h?.hp ?? null, maxHp: h?.maxHp ?? null,
-    stats: h?.stats ?? null, quirks: h?.quirks ?? null,
+    stats: h?.stats ?? null, quirks: h?.quirks ?? null, portraitAssetId: h?.portraitAssetId ?? null,
   };
 }
 
@@ -306,7 +307,7 @@ async function hydrate(room: Room): Promise<void> {
       s.roster[c.playerKey] = {
         name: c.name, cls: c.cls, avatar: c.avatar, stats: c.stats as Record<Stat, number>,
         hp: c.hp, maxHp: c.maxHp, level: c.level, abilities: c.abilities as Ability[],
-        inventory: c.inventory, quirks: c.quirks as Hero["quirks"],
+        inventory: c.inventory, quirks: c.quirks as Hero["quirks"], portraitAssetId: c.portraitAssetId,
       };
     }
   } catch (err) {
@@ -328,7 +329,7 @@ async function finalizeForge(room: Room): Promise<void> {
           campaignId: room.campaignId, playerKey: p.playerKey,
           name: h.name, cls: h.cls, avatar: h.avatar, stats: h.stats,
           hp: h.hp, maxHp: h.maxHp, level: h.level, abilities: h.abilities,
-          inventory: h.inventory, quirks: h.quirks, portraitAssetId: null,
+          inventory: h.inventory, quirks: h.quirks, portraitAssetId: h.portraitAssetId ?? null,
         });
         s.roster[p.playerKey] = h;
       } catch (err) {
@@ -336,7 +337,47 @@ async function finalizeForge(room: Room): Promise<void> {
       }
     }
   }
+  void generatePortraits(room); // fire-and-forget; stock art shows until they land
   openBriefing(room, false);
+}
+
+/** Generate a bespoke portrait per hero (priority-1 art). Tagged by player_key
+ *  so it's unique per hero AND a cache hit on resume — a one-time cost the
+ *  player then owns for the whole campaign. Non-blocking; broadcasts as each
+ *  lands so the stock class art swaps to the real face mid-lobby. */
+async function generatePortraits(room: Room): Promise<void> {
+  if (!room.storage || !room.artist || !room.campaignId || room.artist.kind === "none") return;
+  await Promise.all(
+    [...room.players.values()].map(async (p) => {
+      const h = p.data.hero as Hero | undefined;
+      if (!h || !p.playerKey || h.portraitAssetId) return;
+      const sex = sexForAvatar(h.avatar);
+      const cls = CLASS_BY_ID.get(h.cls)?.label ?? h.cls;
+      const assetId = await getOrCreateAsset(room.storage!, room.artist!, {
+        scope: room.campaignId!,
+        kind: "portrait",
+        tags: [h.cls, sex, `pk:${p.playerKey}`],
+        styleKey: CAMPAIGN_ART_STYLE,
+        prompt: `Character bust portrait of ${h.name}, a ${h.quirks.adjective.toLowerCase()} ${sex} ${cls} carrying ${h.quirks.item}. Expressive face, heroic but comedic.`,
+        aspect: "portrait",
+      });
+      if (assetId) {
+        h.portraitAssetId = assetId;
+        const s = C(room);
+        if (s.roster[p.playerKey]) s.roster[p.playerKey].portraitAssetId = assetId;
+        try {
+          await room.storage!.upsertCharacter({
+            campaignId: room.campaignId!, playerKey: p.playerKey, name: h.name, cls: h.cls, avatar: h.avatar,
+            stats: h.stats, hp: h.hp, maxHp: h.maxHp, level: h.level, abilities: h.abilities,
+            inventory: h.inventory, quirks: h.quirks, portraitAssetId: assetId,
+          });
+        } catch (err) {
+          console.error(`[campaign:${room.code}] save portrait for ${h.name} failed:`, err);
+        }
+        room.broadcast();
+      }
+    }),
+  );
 }
 
 function openBriefing(room: Room, resumed: boolean): void {

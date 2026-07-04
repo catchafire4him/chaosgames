@@ -2,6 +2,7 @@ import type { ModuleId } from "../../shared/src/index.js";
 import type { Director } from "./director/types.js";
 import type { Speaker } from "./speaker/types.js";
 import type { Storage } from "./storage/index.js";
+import type { Artist } from "./artist/index.js";
 import { Room, rid } from "./engine/room.js";
 import type { GameModule } from "./engine/types.js";
 import { getModule } from "./modules/registry.js";
@@ -22,6 +23,8 @@ export class RoomManager {
     private readonly publicUrl: string,
     /** persistence for the Campaign module; other modules ignore it */
     readonly storage?: Storage,
+    /** image generation for the Campaign module */
+    readonly artist?: Artist,
   ) {
     setInterval(() => this.sweep(), 10 * 60 * 1000).unref();
   }
@@ -48,7 +51,7 @@ export class RoomManager {
   /** shared room construction (code already reserved-unique) */
   private build(module: GameModule, code: string): Room {
     const joinUrl = `${this.publicUrl}/#/play/${code}`;
-    const room = new Room(rid("rm"), code, module, this.director, this.speaker, joinUrl, this.storage);
+    const room = new Room(rid("rm"), code, module, this.director, this.speaker, joinUrl, this.storage, this.artist);
     this.rooms.set(room.id, room);
     this.byCode.set(code, room);
     return room;

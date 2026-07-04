@@ -128,6 +128,8 @@ export interface Hero {
   abilities: Ability[];
   inventory: unknown[];
   quirks: { adjective: string; item: string; backstory: string };
+  /** generated portrait asset id (phase 6); null → use the stock class art */
+  portraitAssetId?: string | null;
 }
 
 export function maxHpFor(might: number, level: number): number {
@@ -162,5 +164,12 @@ export function buildHero(player: ServerPlayer, input: {
       item: input.item && SIGNATURE_ITEMS.includes(input.item) ? input.item : pick(SIGNATURE_ITEMS),
       backstory: input.backstory && BACKSTORIES.includes(input.backstory) ? input.backstory : pick(BACKSTORIES),
     },
+    portraitAssetId: null,
   };
+}
+
+/** m/f from avatar index, matching classForAvatar's portrait convention */
+export function sexForAvatar(avatar: string): "male" | "female" {
+  const idx = Math.max(0, (parseInt(avatar.replace(/\D/g, ""), 10) || 1) - 1);
+  return idx % 2 === 0 ? "male" : "female";
 }

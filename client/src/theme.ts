@@ -132,3 +132,8 @@ export function campaignPortrait(cls: string, avatar: string): string {
   const sex = idx % 2 === 0 ? "m" : "f";
   return `/img/dnd/portraits/${cls}_${sex}.png`;
 }
+
+/** A hero's face: the generated portrait if one exists (phase 6), else stock. */
+export function heroPortrait(portraitAssetId: string | null | undefined, cls: string, avatar: string): string {
+  return portraitAssetId ? `/asset/${portraitAssetId}` : campaignPortrait(cls, avatar);
+}

@@ -525,6 +525,33 @@ cost saver second.
   clean. This pattern can later wrap the other 3 modules' rooms (noted, not
   built). Next: phase 6 (art), phase 8 (live + safe master merge), or #35 auth.
 
+- **2026-07-04** — PHASE 6 (task #32): Artist adapter + tagged asset library,
+  live-validated. New third pluggable brain `server/src/artist/`: `Artist`
+  interface + `GeminiArtist` (gemini-3.1-flash-lite-image via generateContent
+  responseModalities:["IMAGE"], model fallback chain, returns null on any
+  failure) + `NullArtist` (sim/keyless). `ARTIST=gemini|none` (default gemini
+  when a key is present). `getOrCreateAsset(storage, artist, spec)` = the
+  library: LOOK UP BY TAGS FIRST (hit = free/instant/identical), generate+store
+  on a miss, null → stock art. Wired through Room.artist / RoomManager / boot
+  (log now shows `artist=`). Storage gained `getAsset(id)`; new HTTP route
+  `GET /asset/:id` serves image bytes from Postgres (immutable cache). FIRST
+  integration = HERO PORTRAITS (priority 1, persists = retention): after forge,
+  `generatePortraits()` fires per hero (non-blocking, broadcasts as each lands
+  so stock class art swaps to the real face mid-lobby), tagged
+  [cls, sex, pk:<playerKey>] so it's UNIQUE per hero AND a cache hit on resume;
+  stored on Hero.portraitAssetId + the characters row (survives chapter-end +
+  resume — fixed two upserts that were writing null). Client: `heroPortrait()`
+  → /asset/:id when present else stock; used in CampaignTv (roster/scene/combat
+  tokens) + CampaignPhone (sheets). VALIDATED live (throwaway probe, deleted):
+  GeminiArtist generated a valid 756KB JPEG portrait in 3.3s, and a second call
+  with identical tags was a CACHE HIT (same id, 0ms, times_used incremented).
+  Sim green (NullArtist → portraits skipped, stock art untouched); typecheck +
+  client build clean. DEFERRED (phase 6.1): scene/boss/item art generation (the
+  adapter + library + endpoint all support it — just add getOrCreateAsset calls
+  in applyOutline/startEncounter + push an assetId to the TV to crossfade); a
+  live portrait-on-TV screenshot (dev server was down) → phase 8. Master
+  untouched. Remaining: phase 8 (live + safe merge), #35 auth.
+
 ## 8. Open questions (to settle before/while building)
 
 - **Name**: "Chaos Campaign"? "Deep Run"? Something else — it's on the hub.

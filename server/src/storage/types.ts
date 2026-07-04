@@ -113,6 +113,7 @@ export interface Storage {
 
   // ── tagged asset library (phase 6) ──
   findAsset(q: AssetQuery): Promise<AssetRow | null>;
+  getAsset(id: string): Promise<AssetRow | null>;
   saveAsset(a: Omit<AssetRow, "id" | "timesUsed"> & { id?: string }): Promise<AssetRow>;
   touchAsset(id: string): Promise<void>;
 

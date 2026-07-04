@@ -527,7 +527,7 @@ export function combatPublic(room: Room): unknown {
     enemies: c.enemies.map((e) => ({ id: e.id, name: e.name, kind: e.kind, hp: e.hp, maxHp: e.maxHp, zone: e.zone, alive: e.alive, hexed: e.hexTurns > 0 })),
     heroes: [...room.players.values()].filter((p) => p.data.hero).map((p) => {
       const hc = c.heroes[p.id]; const h = p.data.hero as Hero;
-      return { id: p.id, name: p.name, cls: h.cls, avatar: p.avatar, hp: h.hp, maxHp: h.maxHp, zone: hc?.hidden ? "hidden" : hc?.zone, downed: hc?.downed, defending: hc?.defending };
+      return { id: p.id, name: p.name, cls: h.cls, avatar: p.avatar, portraitAssetId: h.portraitAssetId ?? null, hp: h.hp, maxHp: h.maxHp, zone: hc?.hidden ? "hidden" : hc?.zone, downed: hc?.downed, defending: hc?.defending };
     }),
     order: c.order.map((o) => o.id),
   };

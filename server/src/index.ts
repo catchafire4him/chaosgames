@@ -20,6 +20,7 @@ import type { Room } from "./engine/room.js";
 import { getModule, listModules } from "./modules/registry.js";
 import { RoomManager } from "./roomManager.js";
 import { createStorage } from "./storage/index.js";
+import { createArtist } from "./artist/index.js";
 import { attachHero } from "./modules/campaign/index.js";
 
 // GAME_PORT wins over PORT so dev tooling that injects PORT (preview panels,
@@ -61,9 +62,11 @@ try {
   console.error("[boot] storage init failed — campaign persistence disabled:", err);
 }
 
-console.log(`[boot] director=${director.kind} speaker=${speaker.kind} public=${PUBLIC_URL}`);
+const artist = createArtist();
 
-const rooms = new RoomManager(director, speaker, PUBLIC_URL, storage);
+console.log(`[boot] director=${director.kind} speaker=${speaker.kind} artist=${artist.kind} public=${PUBLIC_URL}`);
+
+const rooms = new RoomManager(director, speaker, PUBLIC_URL, storage, artist);
 
 // ─── Static files (built client) ──────────────────────────────────────────────
 
@@ -85,6 +88,21 @@ const httpServer = createServer(async (req, res) => {
   const url = (req.url ?? "/").split("?")[0];
   if (url === "/healthz") {
     res.writeHead(200, { "content-type": "text/plain" }).end("ok");
+    return;
+  }
+  // Generated art (Campaign): serve image bytes from the asset library.
+  const assetMatch = /^\/asset\/([a-f0-9-]{16,})$/i.exec(url);
+  if (assetMatch) {
+    try {
+      const a = await storage.getAsset(assetMatch[1]);
+      if (a?.image) {
+        res.writeHead(200, { "content-type": a.mime, "cache-control": "public,max-age=31536000,immutable" }).end(a.image);
+        return;
+      }
+    } catch (err) {
+      console.warn("[asset] serve failed:", (err as Error).message);
+    }
+    res.writeHead(404).end();
     return;
   }
   const rel = url === "/" ? "index.html" : url.slice(1);

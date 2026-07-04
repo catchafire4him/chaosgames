@@ -133,6 +133,11 @@ export class PostgresStorage implements Storage {
     return rows[0] ? mapAsset(rows[0]) : null;
   }
 
+  async getAsset(id: string): Promise<AssetRow | null> {
+    const { rows } = await this.pool.query(`SELECT * FROM assets WHERE id = $1`, [id]);
+    return rows[0] ? mapAsset(rows[0]) : null;
+  }
+
   async saveAsset(a: Omit<AssetRow, "id" | "timesUsed"> & { id?: string }): Promise<AssetRow> {
     const { rows } = await this.pool.query(
       `INSERT INTO assets (scope, kind, tags, style_key, prompt, image, mime)

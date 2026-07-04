@@ -105,6 +105,11 @@ export class MemoryStorage implements Storage {
     return matches.length ? cloneAsset(matches[0]) : null;
   }
 
+  async getAsset(id: string): Promise<AssetRow | null> {
+    const a = this.assets.get(id);
+    return a ? cloneAsset(a) : null;
+  }
+
   async saveAsset(a: Omit<AssetRow, "id" | "timesUsed"> & { id?: string }): Promise<AssetRow> {
     const row: AssetRow = { ...cloneAsset(a as AssetRow), id: a.id ?? randomUUID(), timesUsed: 0 };
     this.assets.set(row.id, row);

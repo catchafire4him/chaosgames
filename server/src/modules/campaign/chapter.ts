@@ -285,7 +285,7 @@ async function endChapter(room: Room, won: boolean): Promise<void> {
         await room.storage.upsertCharacter({
           campaignId: room.campaignId, playerKey: p.playerKey, name: h.name, cls: h.cls, avatar: h.avatar,
           stats: h.stats, hp: h.hp, maxHp: h.maxHp, level: h.level, abilities: h.abilities,
-          inventory: h.inventory, quirks: h.quirks, portraitAssetId: null,
+          inventory: h.inventory, quirks: h.quirks, portraitAssetId: h.portraitAssetId ?? null,
         });
       }
       await room.storage.saveCampaign(room.campaignId, { chapterNum: s.chapterNum, campaignLog: s.log });

@@ -12,6 +12,7 @@ import {
 import type { Director } from "../director/types.js";
 import type { Speaker } from "../speaker/types.js";
 import type { Storage } from "../storage/index.js";
+import type { Artist } from "../artist/index.js";
 import type { Beat, GameModule } from "./types.js";
 import { runBeat, type PendingNarration } from "./beats.js";
 
@@ -90,6 +91,8 @@ export class Room {
   campaignId: string | null = null;
   /** persistence backend (Campaign module); undefined for the party modes */
   readonly storage?: Storage;
+  /** image generation (Campaign live art); undefined/none for the party modes */
+  readonly artist?: Artist;
 
   constructor(
     readonly id: string,
@@ -100,8 +103,10 @@ export class Room {
     readonly speaker: Speaker,
     readonly joinUrl: string,
     storage?: Storage,
+    artist?: Artist,
   ) {
     this.storage = storage;
+    this.artist = artist;
   }
 
   /** Lobby-only: swap the game mode, keeping the room code and players. */
