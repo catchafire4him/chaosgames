@@ -245,6 +245,28 @@ input {
   max-width: 460px;
 }
 
+.quickstart {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 26px 14px;
+  max-width: 620px;
+  text-align: left;
+}
+.quickstart ol {
+  margin: 8px 0 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.quickstart li {
+  color: var(--ink-dim);
+  font-size: 17px;
+  line-height: 1.4;
+}
+.quickstart li::marker { color: var(--accent); font-weight: 700; }
+
 .stats-panel {
   background: var(--panel);
   border: 1px solid var(--line);

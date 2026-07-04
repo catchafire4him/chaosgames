@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ClientMessage, ModuleInfo, NarrationLine, PublicRoom } from "@shared/index";
+import type { ClientMessage, ModuleId, ModuleInfo, NarrationLine, PublicRoom } from "@shared/index";
 import { navigate } from "../App";
 import { Music, VoiceEngine } from "../audio/voice";
 import { enableSfx, playSfx, setSfxVolume } from "../audio/sfx";
@@ -118,15 +118,16 @@ export function Tv({ roomId }: { roomId: string }) {
   const theme = themeFor(room?.moduleId);
   useWakeLock(!!room);
 
-  // lobby music (per theme)
+  // ambient music (per theme) — plays continuously across ALL phases and loops;
+  // it ducks under narration rather than stopping. play() no-ops if the source
+  // is unchanged, so phase changes don't restart the track.
   useEffect(() => {
-    if (!audioOn || !room) return;
-    if ((room.phase === "lobby" || room.phase === "ended") && theme.music) {
-      musicRef.current!.play(theme.music, mix.music * 0.45);
-    } else {
+    if (!audioOn || !room || !theme.music) {
       musicRef.current!.stop();
+      return;
     }
-  }, [audioOn, room?.phase, theme.music, mix.music]);
+    musicRef.current!.play(theme.music, mix.music * 0.45);
+  }, [audioOn, room?.moduleId, theme.music, mix.music]);
 
   if (error && !room) {
     return (
@@ -351,6 +352,7 @@ function LobbyScene({
           ))}
         </div>
         {current && <div className="tv-sub" style={{ fontStyle: "italic" }}>{current.tagline}</div>}
+        <QuickStart moduleId={room.moduleId} />
         {room.scoreboard.length > 0 && (
           <div className="scoreboard-panel fade-in">
             <div className="flyout-title" style={{ fontSize: 16 }}>🏆 Tonight's leaderboard</div>
@@ -401,6 +403,49 @@ function LobbyScene({
         )}
       </div>
       <div className="caption-bar" />
+    </div>
+  );
+}
+
+/** Per-module "how to play" shown in the lobby while people connect. */
+const HOW_TO_PLAY: Record<string, { icon: string; steps: string[] }> = {
+  conspiracy: {
+    icon: "🎭",
+    steps: [
+      "You're secretly assigned a role — most are innocent, a few are conspirators.",
+      "Each night the guilty strike; each day everyone debates and votes someone out.",
+      "Innocents win by voting out the conspirators; the guilty win by outlasting them.",
+    ],
+  },
+  whodunnit: {
+    icon: "🔍",
+    steps: [
+      "One of you is secretly the killer — the AI host sets the scene.",
+      "Roam the manor and gather clues on your phone, then accuse a suspect.",
+      "Vote guilty or innocent at each trial — catch the killer before they escape.",
+    ],
+  },
+  dungeon: {
+    icon: "⚔️",
+    steps: [
+      "Forge a hero, then face AI-authored rooms one hero at a time.",
+      "The active hero picks an action and rolls a d20; everyone else buffs or sabotages.",
+      "Survive the dungeon together — for glory (and plenty of comedy).",
+    ],
+  },
+};
+
+function QuickStart({ moduleId }: { moduleId: string }) {
+  const guide = HOW_TO_PLAY[moduleId];
+  if (!guide) return null;
+  return (
+    <div className="quickstart fade-in">
+      <div className="flyout-title" style={{ fontSize: 16 }}>{guide.icon} How to play</div>
+      <ol>
+        {guide.steps.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -562,11 +607,36 @@ function GameOver({ room, send }: { room: PublicRoom; send: Send }) {
         style={{ fontSize: 24, padding: "16px 44px" }}
         onClick={() => send({ type: "tv_command", command: "play_again" })}
       >
-        Back to the lobby
+        ↺ Rematch (same game)
       </button>
-      <div className="tv-sub" style={{ fontSize: 17 }}>
-        same room, same phones — rematch or pick a different game there
+      <div className="switcher" style={{ marginTop: 4 }}>
+        <span className="tv-sub" style={{ fontSize: 16 }}>or switch games:</span>
+        {SWITCHABLE_MODES
+          .filter((m) => m.id !== room.moduleId)
+          .map((m) => (
+            <button
+              key={m.id}
+              className="switch-btn"
+              data-theme={m.id}
+              onClick={() => {
+                // back to the lobby, then swap the mode (both are lobby-gated
+                // server-side, and messages process in order on this socket)
+                send({ type: "tv_command", command: "play_again" });
+                send({ type: "tv_command", command: "switch_module", moduleId: m.id });
+              }}
+            >
+              {m.name}
+            </button>
+          ))}
       </div>
+      <div className="tv-sub" style={{ fontSize: 15 }}>same room, same phones</div>
     </>
   );
 }
+
+/** party modes the host can hot-swap between from the lobby / game-over screen */
+const SWITCHABLE_MODES: { id: ModuleId; name: string }[] = [
+  { id: "conspiracy", name: "Conspiracy" },
+  { id: "whodunnit", name: "Whodunnit" },
+  { id: "dungeon", name: "Dungeon Run" },
+];

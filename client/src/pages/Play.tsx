@@ -21,6 +21,10 @@ export function Play({ code }: { code: string }) {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  // remembered seat id — MUST live in state so reconnects re-send it. (Reading
+  // localStorage inside the memo captured `undefined` on first join and never
+  // updated, so every lobby reconnect created a brand-new player.)
+  const [playerId, setPlayerId] = useState<string | null>(() => localStorage.getItem(storageKey));
 
   const join = useMemo(() => {
     if (!joinedName) return null;
@@ -28,14 +32,15 @@ export function Play({ code }: { code: string }) {
       type: "join_player" as const,
       room: code,
       name: joinedName,
-      playerId: localStorage.getItem(storageKey) ?? undefined,
+      playerId: playerId ?? undefined,
     };
-  }, [code, joinedName, storageKey]);
+  }, [code, joinedName, playerId]);
 
   const { send, connected } = useSocket(join, (msg) => {
     switch (msg.type) {
       case "joined_player":
         localStorage.setItem(storageKey, msg.playerId);
+        setPlayerId(msg.playerId);
         setError(null);
         break;
       case "room_state":
@@ -110,7 +115,7 @@ export function Play({ code }: { code: string }) {
     );
   }
 
-  const myId = localStorage.getItem(storageKey);
+  const myId = playerId;
   const me = room?.players.find((p) => p.id === myId) ?? null;
   const isHost = !!me && room?.hostPlayerId === me.id;
   const yg = (you ?? {}) as { __objective?: string | null; __objectiveClaimed?: boolean };
