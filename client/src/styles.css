@@ -311,8 +311,8 @@ input {
 .audio-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-width: 325px;
+  gap: 20px;
+  min-width: 460px;
   padding: 24px 28px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
   box-sizing: border-box;
@@ -320,13 +320,13 @@ input {
 
 .audio-grid {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 150px 1fr;
   align-items: center;
-  gap: 12px 14px;
+  gap: 20px 20px;
 }
 
 .audio-label {
-  font-size: 15px;
+  font-size: 17px;
   color: var(--ink-dim);
   white-space: nowrap;
   user-select: none;
@@ -341,10 +341,10 @@ input {
 
 .audio-panel input[type="range"] {
   width: 100%;
-  max-width: 145px;
+  max-width: 230px;
   -webkit-appearance: none;
   appearance: none;
-  height: 24px;
+  height: 30px;
   background: transparent;
   margin: 0;
   cursor: pointer;
@@ -378,7 +378,7 @@ input {
   background-size: 100% 100%;
   border: none;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.75);
-  padding: 34px 28px 28px 28px; /* Offset spacing for rustic metal frame */
+  padding: 46px 54px 40px 54px; /* keep content inside the riveted metal border */
 }
 
 [data-theme="dungeon"] .flyout-title {
@@ -397,7 +397,8 @@ input {
 
 [data-theme="dungeon"] .audio-label {
   font-family: 'Press Start 2P', monospace;
-  font-size: 9px;
+  font-size: 11px;
+  line-height: 1.4;
   color: #f5e9d0;
   text-transform: capitalize;
   text-shadow: 2px 2px 0px #110d0a;
@@ -441,32 +442,34 @@ input {
 [data-theme="dungeon"] .slider-sfx::-moz-range-progress { background: linear-gradient(#60a5fa, #1e40af); height: 10px; border-radius: 2px; }
 [data-theme="dungeon"] .slider-speed::-moz-range-progress { background: linear-gradient(#fb923c, #9a3412); height: 10px; border-radius: 2px; }
 
+/* Clean, reliable CSS gem knobs (the pixel SVGs rendered near-invisible) */
 [data-theme="dungeon"] input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 0;
-  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #110d0a;
   cursor: pointer;
-  margin-top: -8px; /* align with 10px track height */
+  margin-top: -10px; /* center on the 10px track */
+  box-shadow: inset 0 -3px 4px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.55);
 }
-[data-theme="dungeon"] .slider-voice::-webkit-slider-thumb { background: var(--gem-voice) no-repeat center; background-size: contain; }
-[data-theme="dungeon"] .slider-music::-webkit-slider-thumb { background: var(--gem-music) no-repeat center; background-size: contain; }
-[data-theme="dungeon"] .slider-sfx::-webkit-slider-thumb { background: var(--gem-sfx) no-repeat center; background-size: contain; }
-[data-theme="dungeon"] .slider-speed::-webkit-slider-thumb { background: var(--gem-speed) no-repeat center; background-size: contain; }
-
 [data-theme="dungeon"] input[type="range"]::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  border-radius: 0;
-  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #110d0a;
   cursor: pointer;
+  box-shadow: inset 0 -3px 4px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.55);
 }
-[data-theme="dungeon"] .slider-voice::-moz-range-thumb { background: var(--gem-voice) no-repeat center; background-size: contain; }
-[data-theme="dungeon"] .slider-music::-moz-range-thumb { background: var(--gem-music) no-repeat center; background-size: contain; }
-[data-theme="dungeon"] .slider-sfx::-moz-range-thumb { background: var(--gem-sfx) no-repeat center; background-size: contain; }
-[data-theme="dungeon"] .slider-speed::-moz-range-thumb { background: var(--gem-speed) no-repeat center; background-size: contain; }
+[data-theme="dungeon"] .slider-voice::-webkit-slider-thumb { background: radial-gradient(circle at 35% 28%, #eafff0 0%, #4ade80 32%, #166534 92%); }
+[data-theme="dungeon"] .slider-music::-webkit-slider-thumb { background: radial-gradient(circle at 35% 28%, #ffe4e4 0%, #f87171 32%, #991b1b 92%); }
+[data-theme="dungeon"] .slider-sfx::-webkit-slider-thumb   { background: radial-gradient(circle at 35% 28%, #e0f0ff 0%, #60a5fa 32%, #1e40af 92%); }
+[data-theme="dungeon"] .slider-speed::-webkit-slider-thumb { background: radial-gradient(circle at 35% 28%, #fff1d6 0%, #fb923c 32%, #9a3412 92%); }
+[data-theme="dungeon"] .slider-voice::-moz-range-thumb { background: radial-gradient(circle at 35% 28%, #eafff0 0%, #4ade80 32%, #166534 92%); }
+[data-theme="dungeon"] .slider-music::-moz-range-thumb { background: radial-gradient(circle at 35% 28%, #ffe4e4 0%, #f87171 32%, #991b1b 92%); }
+[data-theme="dungeon"] .slider-sfx::-moz-range-thumb   { background: radial-gradient(circle at 35% 28%, #e0f0ff 0%, #60a5fa 32%, #1e40af 92%); }
+[data-theme="dungeon"] .slider-speed::-moz-range-thumb { background: radial-gradient(circle at 35% 28%, #fff1d6 0%, #fb923c 32%, #9a3412 92%); }
 
 [data-theme="dungeon"] .reset-speed-btn {
   font-family: 'Press Start 2P', monospace;
@@ -490,7 +493,7 @@ input {
   background-position: center;
   border: none;
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.8);
-  padding: 38px 34px 28px 34px;
+  padding: 46px 56px 40px 56px; /* keep content off the ornate gold border */
 }
 
 [data-theme="whodunnit"] .flyout-title {
@@ -539,18 +542,18 @@ input {
 [data-theme="whodunnit"] input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 32px;
-  height: 18px;
+  width: 40px;
+  height: 22px;
   border-radius: 0;
   border: none;
   cursor: pointer;
   background: var(--whodunnit-knob) no-repeat center;
   background-size: contain;
-  margin-top: -6px; /* align center with track */
+  margin-top: -7px; /* align center with track */
 }
 [data-theme="whodunnit"] input[type="range"]::-moz-range-thumb {
-  width: 32px;
-  height: 18px;
+  width: 40px;
+  height: 22px;
   border-radius: 0;
   border: none;
   cursor: pointer;
@@ -580,7 +583,7 @@ input {
   outline: 1px solid #d8a94e;
   outline-offset: -5px;
   box-shadow: inset 0 0 20px rgba(216, 169, 78, 0.12), 0 14px 44px rgba(0, 0, 0, 0.85);
-  padding: 26px 28px;
+  padding: 32px 40px;
   border-radius: 2px;
 }
 
