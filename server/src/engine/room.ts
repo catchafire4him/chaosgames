@@ -81,6 +81,10 @@ export class Room {
 
   /** narration currently awaiting TV playback acks (set by beats.ts) */
   pending: PendingNarration | null = null;
+  /** a beat is mid-flight — from the Director call through narration playback.
+   *  True earlier than `pending` (which is only set once the call returns), so
+   *  callers can tell "the host is busy" even during the in-flight API call. */
+  composing = false;
 
   /** Campaign only: the persisted campaign this room is bound to. */
   campaignId: string | null = null;

@@ -16,7 +16,7 @@ import { Room, rid } from "../engine/room.js";
 import { NullSpeaker } from "../speaker/types.js";
 import { getModule } from "../modules/registry.js";
 import { MemoryStorage } from "../storage/index.js";
-import { demoEncounter } from "../modules/campaign/index.js";
+import { beginChapter } from "../modules/campaign/index.js";
 
 const BOT_NAMES = [
   "Ada", "Bruno", "Cleo", "Dex", "Edie", "Finn",
@@ -209,7 +209,9 @@ async function waitFor(room: Room, phases: string[], drive: () => void): Promise
  *  room bound to the same campaign resumes with the party intact. */
 async function runCampaign(playerCount: number): Promise<void> {
   const module = getModule("campaign")!;
-  const director = new MockDirector();
+  const apiKey = process.env.GEMINI_API_KEY;
+  const director: Director =
+    process.env.DIRECTOR === "gemini" && apiKey ? new GeminiDirector(apiKey) : new MockDirector();
   const storage = new MemoryStorage();
   await storage.init();
   const campaign = await storage.createCampaign({ joinCode: "SIMC", name: "The Sim Saga" });
@@ -250,14 +252,55 @@ async function runCampaign(playerCount: number): Promise<void> {
   if (ready !== playerCount) throw new Error(`FAIL: resume attached ${ready}/${playerCount} heroes`);
   console.log(`  ✔ resumed campaign — ${ready}/${playerCount} heroes reattached by player_key, no re-forge`);
 
-  // ── phase 3: run a full combat encounter to a terminal ──
-  demoEncounter(r2);
-  await driveCombat(r2);
-  const combat = r2.state.combat as { status: string; round: number; log: string[] };
-  if (combat.status === "active") throw new Error("FAIL: combat never resolved");
-  console.log(`  ✔ combat resolved: ${combat.status} after ${combat.round} round(s)`);
-  console.log(`     e.g. "${combat.log[combat.log.length - 1] ?? ""}"`);
+  // ── phase 4: play a full chapter (intent scene → fork → climax → camp) ──
+  const beforeLevel = ([...r2.players.values()][0].data.hero as { level: number }).level;
+  await driveChapter(r2);
+  const combat = r2.state.combat as { status: string; round: number };
+  const campaignAfter = await storage.getCampaign(campaign.id);
+  if (campaignAfter!.chapterNum !== 1) throw new Error(`FAIL: chapterNum should be 1, got ${campaignAfter!.chapterNum}`);
+  if (!campaignAfter!.campaignLog.chapters.length) throw new Error("FAIL: campaign log has no chapter summary");
+  const savedChars = await storage.listCharacters(campaign.id);
+  const won = combat.status === "won";
+  console.log(`  ✔ chapter 1 played: climax ${combat.status}, chapterNum→${campaignAfter!.chapterNum}, log="${campaignAfter!.campaignLog.chapters[0].summary.slice(0, 48)}…"`);
+  if (won && savedChars[0].level !== beforeLevel + 1) throw new Error(`FAIL: win should level up (${beforeLevel}→${savedChars[0].level})`);
+  console.log(`  ✔ persisted: heroes ${won ? `leveled to ${savedChars[0].level}` : "kept level (fail-forward)"}, log saved`);
+
+  // ── chapter 2 sees chapter-1's memory (recap uses the log) ──
+  await driveChapter(r2);
+  const camp2 = await storage.getCampaign(campaign.id);
+  if (camp2!.chapterNum !== 2) throw new Error(`FAIL: chapter 2 should bump chapterNum to 2, got ${camp2!.chapterNum}`);
+  console.log(`  ✔ chapter 2 built on the log (recap fired) — chapterNum→${camp2!.chapterNum}`);
   r2.destroy();
+}
+
+/** Drive one full chapter with bots: declare an action, vote the fork, fight
+ *  the climax, rest at camp. Gated on `!room.pending` so beats don't stomp. */
+async function driveChapter(room: Room): Promise<void> {
+  const module = room.module;
+  beginChapter(room);
+  const start = Date.now();
+  let declared = false;
+  const heroes = () => [...room.players.values()].filter((p) => p.data.hero);
+  while (room.phase !== "briefing") {
+    if (Date.now() - start > 45_000) throw new Error(`SIM TIMEOUT in chapter (phase "${room.phase}")`);
+    const busy = room.pending || room.composing;
+    if (room.phase === "encounter") {
+      await driveCombat(room);
+    } else if (room.phase === "scene" && !busy) {
+      const pub = module.publicState(room) as { chapter?: { fork?: { options: string[] } | null } };
+      if (!declared) {
+        declared = true;
+        act(room, heroes()[0].id, { kind: "declare", text: "I search the area for anything useful" });
+      } else if (pub.chapter?.fork) {
+        for (const p of heroes()) act(room, p.id, { kind: "fork_vote", option: 0 });
+      } else {
+        act(room, room.hostPlayerId!, { kind: "advance_scene" });
+      }
+    } else if (room.timer && !busy) {
+      const t = room.timer; room.clearTimer(); module.onTimer(room, t.label);
+    }
+    await new Promise((r) => setTimeout(r, 25));
+  }
 }
 
 interface CombatView {

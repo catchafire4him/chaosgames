@@ -95,6 +95,7 @@ export async function runBeat(room: Room, beat: Beat): Promise<void> {
   }
 
   // Show "the host is composing…" while the Director call is in flight.
+  room.composing = true;
   room.sendTv({ type: "host_thinking", on: true });
 
   const tools = [...defaultTools(), ...(beat.tools ?? [])];
@@ -169,6 +170,7 @@ export async function runBeat(room: Room, beat: Beat): Promise<void> {
     if (finished) return;
     finished = true;
     clearTimeout(safety);
+    room.composing = false;
     if (room.pending?.beatId === beat.id) room.pending = null;
     try {
       beat.after?.(room);
@@ -196,6 +198,7 @@ export async function runBeat(room: Room, beat: Beat): Promise<void> {
     cancel() {
       finished = true;
       clearTimeout(safety);
+      room.composing = false;
     },
   };
 

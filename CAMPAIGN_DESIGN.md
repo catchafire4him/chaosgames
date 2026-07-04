@@ -449,6 +449,34 @@ cost saver second.
   engine is complete and headless-tested. Next: phase 4 (chapters) or phase 5
   (combat UI) or the auth slice (#35).
 
+- **2026-07-03** — PHASE 4 COMPLETE (task #30). Intent-driven chapter director,
+  the digital-table loop, validated on BOTH MockDirector AND real Gemini.
+  `server/src/modules/campaign/chapter.ts`. Flow: beginChapter → (recap if
+  chapterNum>0) → chapter_outline (authoring, OUTLINE_SCHEMA) → scene_intro →
+  [THE INTERPRETER LOOP] + party fork → climax combat (phase-3) → camp (milestone
+  level-up: +1 lvl, +1 signature stat, +2 maxHp, full heal on a win; fail-forward
+  on a loss) → chapter_end (log compaction) → briefing. THE INTERPRETER LOOP is a
+  TWO-beat design that keeps the engine authoritative: `declare_interpret`
+  (INTERPRET_SCHEMA → {interpretedAs, stat, difficulty, plausible}; the Director
+  may NOT decide success) → engine `skillCheck()` rolls → `declare_narrate`
+  narrates the ENGINE's verdict. plausible:false → DM rules it out in character.
+  Campaign log (chapters[] summaries + openThreads + choices) compacted at
+  chapter end, persisted to campaigns.campaign_log + chapterNum, and fed into
+  buildContext so later chapters (and the recap beat) build on it. New actions:
+  begin_chapter (host), declare {text}, fork_vote {option}, advance_scene (host).
+  ENGINE FIX (helps real gameplay too): `Room.composing` flag set at runBeat
+  entry (before the Director call returns and sets `pending`) → callers can tell
+  the host is busy DURING the in-flight API call, not just after. Without it, a
+  fast actor (or the sim under real latency) fires into the compose window and
+  supersedes the beat. VERIFIED: `npm run sim campaign` plays forge→persist→
+  resume→FULL chapter (declaration + fork + climax + camp + level-up)→2nd chapter
+  that recaps chapter 1, chapterNum+log+levels persisted; AND `DIRECTOR=gemini
+  npm run sim campaign` ran a real-Gemini chapter (both new schemas produce valid
+  structured output; Director authored "The Spooning of Destiny" riffing on a
+  hero's cursed spoon). All other sims green; typecheck + client build clean.
+  NO client UI for scenes/chapters yet (phase 5) — engine + Director loop complete
+  and dual-validated headless. Next: phase 5 (combat + tactile phone UI), or #35 auth.
+
 ## 8. Open questions (to settle before/while building)
 
 - **Name**: "Chaos Campaign"? "Deep Run"? Something else — it's on the hub.

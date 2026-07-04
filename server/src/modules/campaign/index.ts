@@ -10,6 +10,13 @@ import {
   combatPrivate, combatPublic, heroAction, onTurnTimeout, setEncounterEndHandler, startEncounter,
   type EnemySpec,
 } from "./combat.js";
+import {
+  advanceScene, beginChapter, chapterCanned, chapterCannedData, chapterPrivate, chapterPublic,
+  declare, forkVote, toCamp,
+} from "./chapter.js";
+import { emptyLog, type CampaignLog } from "../../storage/index.js";
+
+export { beginChapter } from "./chapter.js";
 
 /**
  * CHAOS CAMPAIGN (module 4) — a persistent, AI-DM'd fantasy campaign across
@@ -30,13 +37,14 @@ interface CampaignState {
   name: string;
   chapterNum: number;
   roster: Record<string, Hero>; // persisted heroes by playerKey
+  log: CampaignLog; // running memory the Director sees (chapter.ts reads/writes)
   forgeDeadline: number | null;
   hydrated: boolean;
 }
 
 function C(room: Room): CampaignState {
   if (!room.state.campaign) {
-    room.state.campaign = { name: "Campaign", chapterNum: 0, roster: {}, forgeDeadline: null, hydrated: false } satisfies CampaignState;
+    room.state.campaign = { name: "Campaign", chapterNum: 0, roster: {}, log: emptyLog(), forgeDeadline: null, hydrated: false } satisfies CampaignState;
   }
   return room.state.campaign as CampaignState;
 }
@@ -53,8 +61,13 @@ export function attachHero(room: Room, player: ServerPlayer): void {
   }
 }
 
-// once combat resolves, drop into an aftermath beat (phase 4 continues the story)
+// when combat resolves: if it was a chapter climax, go to camp (level-up + log);
+// otherwise (a bare demo encounter) just play a standalone aftermath beat.
 setEncounterEndHandler((room, status) => {
+  if (room.state.chapter) {
+    toCamp(room, status === "won");
+    return;
+  }
   room.setPhase("aftermath");
   room.broadcast();
   room.play({
@@ -113,6 +126,17 @@ export const campaign: GameModule = {
       heroAction(room, playerId, action as Record<string, unknown>);
       return;
     }
+    // begin the next chapter from the briefing (party host)
+    if (room.phase === "briefing" && action.kind === "begin_chapter") {
+      if (room.hostPlayerId === playerId) beginChapter(room);
+      return;
+    }
+    // free-text intent + fork votes during a scene (the Interpreter loop)
+    if (room.phase === "scene") {
+      if (action.kind === "declare" && typeof action.text === "string") { declare(room, playerId, action.text); return; }
+      if (action.kind === "fork_vote" && typeof action.option === "number") { forkVote(room, playerId, action.option); return; }
+      if (action.kind === "advance_scene" && room.hostPlayerId === playerId) { advanceScene(room); return; }
+    }
   },
 
   onTimer(room: Room, label: string): void {
@@ -144,6 +168,9 @@ export const campaign: GameModule = {
     if (room.phase === "encounter" || room.phase === "aftermath") {
       return { ...base, combat: combatPublic(room) };
     }
+    if (room.phase === "scene" || room.phase === "chapter_intro" || room.phase === "camp" || room.phase === "chapter_end") {
+      return { ...base, chapter: chapterPublic(room) };
+    }
     return base;
   },
 
@@ -169,6 +196,9 @@ export const campaign: GameModule = {
     if (room.phase === "encounter") {
       return { ...base, combat: combatPrivate(room, playerId) };
     }
+    if (room.phase === "scene") {
+      return { ...base, chapter: chapterPrivate(room, playerId) };
+    }
     return base;
   },
 
@@ -179,22 +209,38 @@ export const campaign: GameModule = {
       .filter((h): h is Hero => !!h)
       .map((h) => `${h.name} the ${h.quirks.adjective} ${CLASS_BY_ID.get(h.cls)?.label ?? h.cls} (lvl ${h.level}, ${h.hp}/${h.maxHp} HP, carries ${h.quirks.item})`);
     const combat = room.phase === "encounter" ? "\nA fight is underway." : "";
+    const story: string[] = [];
+    if (s.log.chapters.length) story.push(`STORY SO FAR:\n${s.log.chapters.slice(-3).map((c) => `- ${c.summary}`).join("\n")}`);
+    if (s.log.openThreads.length) story.push(`OPEN THREADS (honor these): ${s.log.openThreads.slice(-5).join("; ")}`);
+    if (s.log.choices.length) story.push(`PAST CHOICES: ${s.log.choices.slice(-4).map((c) => c.outcome).join("; ")}`);
     return [
       `CAMPAIGN: "${s.name}" — chapter ${s.chapterNum + 1}.`,
       party.length ? `THE PARTY:\n${party.map((l) => `- ${l}`).join("\n")}` : "The party is still being forged.",
+      ...story,
       combat,
     ].join("\n");
   },
 
-  canned(beatId: string): { text: string; mood?: string }[] {
+  canned(beatId: string, room: Room): { text: string; mood?: string }[] {
     switch (beatId) {
       case "briefing":
         return [{ text: "The party is assembled. Steel yourselves, heroes — your saga begins.", mood: "grand" }];
       case "aftermath":
         return [{ text: "The dust settles. What comes next is another tale…", mood: "wry" }];
+      case "recap":
+      case "scene_intro":
+      case "declare_narrate":
+      case "fork_resolve":
+      case "camp":
+      case "chapter_end":
+        return chapterCanned(beatId, room);
       default:
         return [{ text: "…", mood: "flat" }];
     }
+  },
+
+  cannedData(beatId: string): unknown {
+    return chapterCannedData(beatId);
   },
 };
 
@@ -221,7 +267,7 @@ async function hydrate(room: Room): Promise<void> {
   if (!room.storage || !room.campaignId) return;
   try {
     const camp = await room.storage.getCampaign(room.campaignId);
-    if (camp) { s.name = camp.name; s.chapterNum = camp.chapterNum; }
+    if (camp) { s.name = camp.name; s.chapterNum = camp.chapterNum; s.log = camp.campaignLog; }
     const chars = await room.storage.listCharacters(room.campaignId);
     for (const c of chars) {
       s.roster[c.playerKey] = {
