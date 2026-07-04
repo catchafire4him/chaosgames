@@ -19,6 +19,7 @@ import type { Director } from "./director/types.js";
 import type { Room } from "./engine/room.js";
 import { getModule, listModules } from "./modules/registry.js";
 import { RoomManager } from "./roomManager.js";
+import { createStorage } from "./storage/index.js";
 
 // GAME_PORT wins over PORT so dev tooling that injects PORT (preview panels,
 // vite wrappers) can't collide with the game server. Railway still sets PORT.
@@ -48,9 +49,20 @@ const director: Director =
 const speaker: Speaker =
   speakerKind === "gemini" && apiKey ? new GeminiTtsSpeaker(apiKey) : new NullSpeaker();
 
+// Persistence (Campaign module). Memory by default; Neon when DATABASE_URL is
+// set. init() is idempotent — it (re)applies the schema. A DB failure must not
+// take down the live party modules, which don't use storage.
+const storage = createStorage();
+try {
+  await storage.init();
+  console.log(`[boot] storage=${storage.kind}`);
+} catch (err) {
+  console.error("[boot] storage init failed — campaign persistence disabled:", err);
+}
+
 console.log(`[boot] director=${director.kind} speaker=${speaker.kind} public=${PUBLIC_URL}`);
 
-const rooms = new RoomManager(director, speaker, PUBLIC_URL);
+const rooms = new RoomManager(director, speaker, PUBLIC_URL, storage);
 
 // ─── Static files (built client) ──────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import type { ModuleId } from "../../shared/src/index.js";
 import type { Director } from "./director/types.js";
 import type { Speaker } from "./speaker/types.js";
+import type { Storage } from "./storage/index.js";
 import { Room, rid } from "./engine/room.js";
 import { getModule } from "./modules/registry.js";
 
@@ -18,6 +19,8 @@ export class RoomManager {
     private readonly director: Director,
     private readonly speaker: Speaker,
     private readonly publicUrl: string,
+    /** persistence for the Campaign module; other modules ignore it */
+    readonly storage?: Storage,
   ) {
     setInterval(() => this.sweep(), 10 * 60 * 1000).unref();
   }

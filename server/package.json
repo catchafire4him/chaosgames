@@ -12,10 +12,12 @@
   "dependencies": {
     "@google/genai": "^1.0.0",
     "dotenv": "^16.4.0",
+    "pg": "^8.22.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "@types/pg": "^8.20.0",
     "@types/ws": "^8.5.14",
     "cross-env": "^10.1.0",
     "tsx": "^4.19.3",
