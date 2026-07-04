@@ -360,6 +360,36 @@ cost saver second.
   those two additive campaign hunks on top. Everything else on campaign is new
   files or non-overlapping edits.
 
+- **2026-07-03** — PHASE 3 COMPLETE (task #29). Rules engine, all server-side,
+  fully sim-verified. `server/src/modules/campaign/heroes.ts` (extracted from
+  index.ts to break a circular dep — classes now carry `weaponDmg`) +
+  `combat.ts` (the engine). Implemented: skill checks (`skillCheck`, d20+stat
+  vs DC bands easy8/tricky12/hard16/heroic20, nat1/nat20 override — exported
+  for phase 4 scenes); zone combat over `[enemy_back, enemy_front, party_front,
+  party_back]` + HIDDEN, positions never referenced finer than a zone (grid-
+  ready contract); initiative (d20+CUNNING heroes / d20+2 enemies), fixed order,
+  round tracking; turns = optional 1-zone move + one action (Attack d20+signature
+  stat vs enemy DEF, flat weaponDmg, nat20 doubles / Ability / Help +2 / Defend
+  +3 DEF, the auto-action on the 40s turn-timer so nothing stalls); all 12 class
+  abilities with cooldowns (big_swing, anger, intervene, shield_wall, vanish,
+  backstab, firebolt, fireball w/ friendly-fire-on-fumble, brew heal, hex,
+  inspire, limerick); enemy templates minion/bruiser/caster/lurker/boss scaled
+  by party size+level with per-kind targeting behavior (bruiser→front,
+  caster→back, lurker→HIDDEN, boss→lowest HP); downed at 0 HP (skipped, revivable
+  later), TPK→"lost", clear→"won". Combat decoupled from flow via
+  `setEncounterEndHandler` (module drops to an "aftermath" beat on end).
+  Module wiring: onAction `combat_action`→heroAction, onTimer `combat_turn`→
+  auto-defend, publicState/privateState expose combat views (`combatPublic/
+  combatPrivate`) for the phase-5 UI. `demoEncounter(room)` = a scaled starter
+  fight the sim triggers (NOT auto-wired into flow — briefing is still the live
+  terminal until phase 4 chapters call startEncounter). VERIFIED: `npm run sim
+  campaign` forges→persists→resumes→runs a FULL combat to a terminal every run
+  (~3:2 win:loss for bot-piloted healer-less parties — competitive, not broken;
+  real balance tuning is a phase-8 concern). All other sims green; server
+  typecheck + client build clean. No client combat UI yet (phase 5) — the
+  engine is complete and headless-tested. Next: phase 4 (chapters) or phase 5
+  (combat UI) or the auth slice (#35).
+
 ## 8. Open questions (to settle before/while building)
 
 - **Name**: "Chaos Campaign"? "Deep Run"? Something else — it's on the hub.

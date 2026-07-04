@@ -1,187 +1,35 @@
 import type { PlayerAction } from "../../../../shared/src/index.js";
 import type { Room, ServerPlayer } from "../../engine/room.js";
 import type { GameModule } from "../../engine/types.js";
+import {
+  ADJECTIVES, BACKSTORIES, CLASSES, CLASS_BY_ID, SIGNATURE_ITEMS, STAT_ARRAY,
+  buildHero, classForAvatar,
+  type Ability, type Hero, type Stat,
+} from "./heroes.js";
+import {
+  combatPrivate, combatPublic, heroAction, onTurnTimeout, setEncounterEndHandler, startEncounter,
+  type EnemySpec,
+} from "./combat.js";
 
 /**
- * CHAOS CAMPAIGN (module 4) — a persistent, AI-DM'd fantasy campaign played
- * across game nights. See CAMPAIGN_DESIGN.md for the full design.
+ * CHAOS CAMPAIGN (module 4) — a persistent, AI-DM'd fantasy campaign across
+ * game nights. See CAMPAIGN_DESIGN.md.
  *
- * PHASE 2 scope (this file, so far): the campaign SHELL + HERO FORGE.
- *   lobby → forge → briefing
- * Heroes (4 stats, class, HP, abilities, mad-libs flavor) are built on phones
- * and persisted to the DB, so a campaign resumes with its party intact. The
- * rules engine (checks/combat) is phase 3; chapters are phase 4 — for now the
- * flow ends at a "briefing" that proves the roster round-trips through Neon.
+ *   lobby → forge → briefing → (encounter → aftermath)*
+ *
+ * Phase 2 built the shell + hero forge (persisted to Neon). Phase 3 adds the
+ * rules engine (combat.ts): zone combat, initiative, turns, enemy AI, the 12
+ * class abilities, downed/revive, win/loss. Chapters (phase 4) will drive
+ * encounters from authored scenes; for now `startEncounter` is a library the
+ * sim invokes directly.
  */
 
-// ─── Heroes ───────────────────────────────────────────────────────────────────
-
-export type Stat = "might" | "cunning" | "arcana" | "heart";
-export const STATS: Stat[] = ["might", "cunning", "arcana", "heart"];
-/** the assignable stat array — every hero is a permutation of these */
-export const STAT_ARRAY = [2, 1, 0, -1];
-
-export interface Ability {
-  id: string;
-  label: string;
-  /** rounds between uses (0 = every turn, 99 = once per encounter) */
-  cd: number;
-  desc: string;
-}
-
-export interface ClassDef {
-  id: string;
-  label: string;
-  stat: Stat;
-  role: string;
-  /** default stat spread (a permutation of STAT_ARRAY); signature stat = +2 */
-  defaultStats: Record<Stat, number>;
-  abilities: Ability[];
-  /** avatars this class prefers (portrait reuse from the dungeon art set) */
-}
-
-export const CLASSES: ClassDef[] = [
-  {
-    id: "barbarian", label: "Barbarian", stat: "might", role: "striker",
-    defaultStats: { might: 2, heart: 1, cunning: 0, arcana: -1 },
-    abilities: [
-      { id: "big_swing", label: "Big Swing", cd: 3, desc: "Hit two enemies in reach at once." },
-      { id: "anger", label: "Unreasonable Anger", cd: 99, desc: "+2 damage for the rest of this encounter." },
-    ],
-  },
-  {
-    id: "knight", label: "Knight", stat: "might", role: "defender",
-    defaultStats: { might: 2, heart: 1, arcana: 0, cunning: -1 },
-    abilities: [
-      { id: "intervene", label: "Intervene", cd: 2, desc: "Redirect a hit aimed at an ally onto yourself." },
-      { id: "shield_wall", label: "Shield Wall", cd: 3, desc: "Your front line takes -2 damage for a round." },
-    ],
-  },
-  {
-    id: "rogue", label: "Rogue", stat: "cunning", role: "skirmisher",
-    defaultStats: { cunning: 2, might: 1, heart: 0, arcana: -1 },
-    abilities: [
-      { id: "vanish", label: "Vanish", cd: 3, desc: "Slip into the HIDDEN zone for free." },
-      { id: "backstab", label: "Backstab", cd: 2, desc: "+4 damage from HIDDEN, then you're revealed." },
-    ],
-  },
-  {
-    id: "wizard", label: "Wizard", stat: "arcana", role: "blaster",
-    defaultStats: { arcana: 2, cunning: 1, heart: 0, might: -1 },
-    abilities: [
-      { id: "firebolt", label: "Firebolt", cd: 0, desc: "A reliable ranged zap; ignores zone limits." },
-      { id: "fireball", label: "Probably-Fireball", cd: 4, desc: "Hit a whole zone — friendly fire on a fumble." },
-    ],
-  },
-  {
-    id: "hedge_witch", label: "Hedge Witch", stat: "heart", role: "healer",
-    defaultStats: { heart: 2, arcana: 1, cunning: 0, might: -1 },
-    abilities: [
-      { id: "brew", label: "Dubious Brew", cd: 2, desc: "Heal an ally 2d4 — on a nat 1 it's a poison." },
-      { id: "hex", label: "Hex", cd: 3, desc: "An enemy rolls at -2 for two rounds." },
-    ],
-  },
-  {
-    id: "bard", label: "Bard", stat: "heart", role: "support",
-    defaultStats: { heart: 2, cunning: 1, might: 0, arcana: -1 },
-    abilities: [
-      { id: "inspire", label: "Inspire", cd: 2, desc: "An ally's next roll gets +3." },
-      { id: "limerick", label: "Devastating Limerick", cd: 3, desc: "A HEART attack; the target also skips its move." },
-    ],
-  },
-];
-
-const CLASS_BY_ID = new Map(CLASSES.map((c) => [c.id, c]));
-
-/** deterministic avatar → default class, so a hero forged with one tap still
- *  matches the portrait the player picked in the lobby */
-export function classForAvatar(avatar: string): ClassDef {
-  const idx = Math.max(0, (parseInt(avatar.replace(/\D/g, ""), 10) || 1) - 1);
-  return CLASSES[idx % CLASSES.length];
-}
-
-// ─── Mad-libs flavor pools ──────────────────────────────────────────────────
-
-const ADJECTIVES = [
-  "Cowardly", "Overconfident", "Suspiciously Wet", "Perpetually Hungry",
-  "Tragically Honest", "Mildly Cursed", "Unreasonably Calm", "Recently Resurrected",
-  "Bad at Names", "Haunted by a Goose",
-];
-const SIGNATURE_ITEMS = [
-  "a cursed spoon", "a sentient map (rude)", "a very heavy rock",
-  "a sword that only cuts vegetables", "a flask of questionable courage",
-  "a single immortal houseplant", "a bag of teeth (not yours)", "a lute with one string",
-];
-const BACKSTORIES = [
-  "I'm only here because I owe someone a great deal of money.",
-  "I seek glory, fortune, and ideally a nap.",
-  "Someone told me there'd be snacks.",
-  "I am legally required to complete one (1) heroic deed.",
-  "Revenge. Against whom, I've forgotten.",
-];
-
-function pick<T>(pool: T[]): T {
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-// ─── Hero shape (lives on player.data.hero and in the DB) ───────────────────
-
-export interface Hero {
-  name: string;
-  cls: string;
-  avatar: string;
-  stats: Record<Stat, number>;
-  hp: number;
-  maxHp: number;
-  level: number;
-  abilities: Ability[];
-  inventory: unknown[];
-  quirks: { adjective: string; item: string; backstory: string };
-}
-
-export function maxHpFor(might: number, level: number): number {
-  return Math.max(6, 8 + 2 * might + 2 * level);
-}
-
-function isValidSpread(stats: Record<string, unknown>): stats is Record<Stat, number> {
-  const vals = STATS.map((s) => stats[s]);
-  if (vals.some((v) => typeof v !== "number")) return false;
-  return [...(vals as number[])].sort((a, b) => a - b).join(",") === [...STAT_ARRAY].sort((a, b) => a - b).join(",");
-}
-
-function buildHero(player: ServerPlayer, input: {
-  cls?: string; stats?: Record<string, number>; adjective?: string; item?: string; backstory?: string;
-}): Hero {
-  const cls = (input.cls && CLASS_BY_ID.get(input.cls)) || classForAvatar(player.avatar);
-  const stats = input.stats && isValidSpread(input.stats) ? { ...(input.stats as Record<Stat, number>) } : { ...cls.defaultStats };
-  const level = 1;
-  const maxHp = maxHpFor(stats.might, level);
-  return {
-    name: player.name,
-    cls: cls.id,
-    avatar: player.avatar,
-    stats,
-    hp: maxHp,
-    maxHp,
-    level,
-    abilities: cls.abilities,
-    inventory: [],
-    quirks: {
-      adjective: input.adjective && ADJECTIVES.includes(input.adjective) ? input.adjective : pick(ADJECTIVES),
-      item: input.item && SIGNATURE_ITEMS.includes(input.item) ? input.item : pick(SIGNATURE_ITEMS),
-      backstory: input.backstory && BACKSTORIES.includes(input.backstory) ? input.backstory : pick(BACKSTORIES),
-    },
-  };
-}
-
-// ─── Module state ───────────────────────────────────────────────────────────
+export type { Hero, Stat, Ability };
 
 interface CampaignState {
   name: string;
   chapterNum: number;
-  /** heroes loaded from the DB on resume, keyed by playerKey (may not yet be
-   *  claimed by a connected player) */
-  roster: Record<string, Hero>;
+  roster: Record<string, Hero>; // persisted heroes by playerKey
   forgeDeadline: number | null;
   hydrated: boolean;
 }
@@ -205,7 +53,18 @@ export function attachHero(room: Room, player: ServerPlayer): void {
   }
 }
 
-// ─── The module ─────────────────────────────────────────────────────────────
+// once combat resolves, drop into an aftermath beat (phase 4 continues the story)
+setEncounterEndHandler((room, status) => {
+  room.setPhase("aftermath");
+  room.broadcast();
+  room.play({
+    id: "aftermath",
+    instruction:
+      status === "won"
+        ? "The party has won the fight. In one or two sentences, celebrate the victory and hint at what lies ahead."
+        : "The party was overwhelmed. In one or two sentences, describe them being dragged off or barely escaping — a setback, not the end.",
+  });
+});
 
 export const campaign: GameModule = {
   id: "campaign",
@@ -220,11 +79,8 @@ export const campaign: GameModule = {
 
   setup(room: Room): void {
     const s = C(room);
-    // load persisted campaign + roster, then either skip to briefing (resume)
-    // or open the forge (new party).
     void hydrate(room).then(() => {
       const heroesExist = Object.keys(s.roster).length > 0;
-      // claim any already-connected players' heroes
       for (const p of room.players.values()) attachHero(room, p);
       if (heroesExist) {
         openBriefing(room, true);
@@ -251,41 +107,50 @@ export const campaign: GameModule = {
       player.done = true;
       room.broadcast();
       if (allForged(room)) void finalizeForge(room);
+      return;
+    }
+    if (room.phase === "encounter" && action.kind === "combat_action") {
+      heroAction(room, playerId, action as Record<string, unknown>);
+      return;
     }
   },
 
   onTimer(room: Room, label: string): void {
     if (label === "forge" && room.phase === "forge") {
-      // auto-forge anyone who dawdled (default class from their avatar)
       for (const p of room.players.values()) {
-        if (!p.data.hero) {
-          p.data.hero = buildHero(p, {});
-          p.done = true;
-        }
+        if (!p.data.hero) { p.data.hero = buildHero(p, {}); p.done = true; }
       }
       void finalizeForge(room);
+      return;
+    }
+    if (label === "combat_turn" && room.phase === "encounter") {
+      onTurnTimeout(room);
+      return;
     }
   },
 
   publicState(room: Room): unknown {
     const s = C(room);
-    return {
+    const base = {
       name: s.name,
       chapterNum: s.chapterNum,
       phase: room.phase,
       forgeDeadline: s.forgeDeadline,
       party: [...room.players.values()].map((p) => heroCard(p)),
-      // heroes from a prior session not yet reclaimed this session
       awaiting: Object.entries(s.roster)
         .filter(([key]) => ![...room.players.values()].some((p) => p.playerKey === key))
         .map(([, h]) => ({ name: h.name, cls: h.cls, level: h.level })),
     };
+    if (room.phase === "encounter" || room.phase === "aftermath") {
+      return { ...base, combat: combatPublic(room) };
+    }
+    return base;
   },
 
   privateState(room: Room, playerId: string): unknown {
     const player = room.players.get(playerId);
     const hero = (player?.data.hero as Hero | undefined) ?? null;
-    return {
+    const base = {
       id: playerId,
       phase: room.phase,
       hero,
@@ -301,6 +166,10 @@ export const campaign: GameModule = {
             }
           : null,
     };
+    if (room.phase === "encounter") {
+      return { ...base, combat: combatPrivate(room, playerId) };
+    }
+    return base;
   },
 
   buildContext(room: Room): string {
@@ -308,20 +177,24 @@ export const campaign: GameModule = {
     const party = [...room.players.values()]
       .map((p) => p.data.hero as Hero | undefined)
       .filter((h): h is Hero => !!h)
-      .map((h) => `${h.name} the ${h.quirks.adjective} ${CLASS_BY_ID.get(h.cls)?.label ?? h.cls} (lvl ${h.level}, carries ${h.quirks.item})`);
+      .map((h) => `${h.name} the ${h.quirks.adjective} ${CLASS_BY_ID.get(h.cls)?.label ?? h.cls} (lvl ${h.level}, ${h.hp}/${h.maxHp} HP, carries ${h.quirks.item})`);
+    const combat = room.phase === "encounter" ? "\nA fight is underway." : "";
     return [
       `CAMPAIGN: "${s.name}" — chapter ${s.chapterNum + 1}.`,
       party.length ? `THE PARTY:\n${party.map((l) => `- ${l}`).join("\n")}` : "The party is still being forged.",
+      combat,
     ].join("\n");
   },
 
   canned(beatId: string): { text: string; mood?: string }[] {
-    if (beatId === "briefing") {
-      return [
-        { text: "The party is assembled. Steel yourselves, heroes — your saga begins.", mood: "grand" },
-      ];
+    switch (beatId) {
+      case "briefing":
+        return [{ text: "The party is assembled. Steel yourselves, heroes — your saga begins.", mood: "grand" }];
+      case "aftermath":
+        return [{ text: "The dust settles. What comes next is another tale…", mood: "wry" }];
+      default:
+        return [{ text: "…", mood: "flat" }];
     }
-    return [{ text: "…", mood: "flat" }];
   },
 };
 
@@ -330,17 +203,9 @@ export const campaign: GameModule = {
 function heroCard(p: ServerPlayer): unknown {
   const h = p.data.hero as Hero | undefined;
   return {
-    id: p.id,
-    name: p.name,
-    avatar: p.avatar,
-    connected: p.connected,
-    ready: !!h,
-    cls: h?.cls ?? null,
-    level: h?.level ?? null,
-    hp: h?.hp ?? null,
-    maxHp: h?.maxHp ?? null,
-    stats: h?.stats ?? null,
-    quirks: h?.quirks ?? null,
+    id: p.id, name: p.name, avatar: p.avatar, connected: p.connected, ready: !!h,
+    cls: h?.cls ?? null, level: h?.level ?? null, hp: h?.hp ?? null, maxHp: h?.maxHp ?? null,
+    stats: h?.stats ?? null, quirks: h?.quirks ?? null,
   };
 }
 
@@ -349,7 +214,6 @@ function allForged(room: Room): boolean {
   return connected.length > 0 && connected.every((p) => !!p.data.hero);
 }
 
-/** load campaign row + persisted characters into module state */
 async function hydrate(room: Room): Promise<void> {
   const s = C(room);
   if (s.hydrated) return;
@@ -357,23 +221,13 @@ async function hydrate(room: Room): Promise<void> {
   if (!room.storage || !room.campaignId) return;
   try {
     const camp = await room.storage.getCampaign(room.campaignId);
-    if (camp) {
-      s.name = camp.name;
-      s.chapterNum = camp.chapterNum;
-    }
+    if (camp) { s.name = camp.name; s.chapterNum = camp.chapterNum; }
     const chars = await room.storage.listCharacters(room.campaignId);
     for (const c of chars) {
       s.roster[c.playerKey] = {
-        name: c.name,
-        cls: c.cls,
-        avatar: c.avatar,
-        stats: c.stats as Record<Stat, number>,
-        hp: c.hp,
-        maxHp: c.maxHp,
-        level: c.level,
-        abilities: c.abilities as Ability[],
-        inventory: c.inventory,
-        quirks: c.quirks as Hero["quirks"],
+        name: c.name, cls: c.cls, avatar: c.avatar, stats: c.stats as Record<Stat, number>,
+        hp: c.hp, maxHp: c.maxHp, level: c.level, abilities: c.abilities as Ability[],
+        inventory: c.inventory, quirks: c.quirks as Hero["quirks"],
       };
     }
   } catch (err) {
@@ -381,7 +235,6 @@ async function hydrate(room: Room): Promise<void> {
   }
 }
 
-/** persist every forged hero, then move to the briefing */
 async function finalizeForge(room: Room): Promise<void> {
   if (room.phase !== "forge") return;
   room.clearTimer();
@@ -393,19 +246,10 @@ async function finalizeForge(room: Room): Promise<void> {
       if (!h || !p.playerKey) continue;
       try {
         await room.storage.upsertCharacter({
-          campaignId: room.campaignId,
-          playerKey: p.playerKey,
-          name: h.name,
-          cls: h.cls,
-          avatar: h.avatar,
-          stats: h.stats,
-          hp: h.hp,
-          maxHp: h.maxHp,
-          level: h.level,
-          abilities: h.abilities,
-          inventory: h.inventory,
-          quirks: h.quirks,
-          portraitAssetId: null,
+          campaignId: room.campaignId, playerKey: p.playerKey,
+          name: h.name, cls: h.cls, avatar: h.avatar, stats: h.stats,
+          hp: h.hp, maxHp: h.maxHp, level: h.level, abilities: h.abilities,
+          inventory: h.inventory, quirks: h.quirks, portraitAssetId: null,
         });
         s.roster[p.playerKey] = h;
       } catch (err) {
@@ -425,4 +269,16 @@ function openBriefing(room: Room, resumed: boolean): void {
       ? `Welcome the party back for chapter ${C(room).chapterNum + 1} of "${C(room).name}". One or two sentences, warm and grand, hinting the story continues.`
       : `The heroes have just been forged. In one or two sentences, welcome this new party to the campaign "${C(room).name}" and promise adventure.`,
   });
+}
+
+/** Convenience for phase 4 / the sim: a scaled starter encounter. */
+export function demoEncounter(room: Room): void {
+  const n = [...room.players.values()].filter((p) => p.data.hero).length;
+  const specs: EnemySpec[] = [
+    { kind: "bruiser", name: "the Troll Tollkeeper" },
+    { kind: "minion", name: "a goblin runt" },
+    { kind: "minion", name: "another goblin runt" },
+  ];
+  if (n >= 4) specs.push({ kind: "caster", name: "a hedge-sorcerer" });
+  startEncounter(room, "Ambush at the Rusty Bridge", specs);
 }

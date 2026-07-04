@@ -16,6 +16,7 @@ import { Room, rid } from "../engine/room.js";
 import { NullSpeaker } from "../speaker/types.js";
 import { getModule } from "../modules/registry.js";
 import { MemoryStorage } from "../storage/index.js";
+import { demoEncounter } from "../modules/campaign/index.js";
 
 const BOT_NAMES = [
   "Ada", "Bruno", "Cleo", "Dex", "Edie", "Finn",
@@ -248,7 +249,59 @@ async function runCampaign(playerCount: number): Promise<void> {
   const ready = pub.party.filter((h) => h.ready).length;
   if (ready !== playerCount) throw new Error(`FAIL: resume attached ${ready}/${playerCount} heroes`);
   console.log(`  ✔ resumed campaign — ${ready}/${playerCount} heroes reattached by player_key, no re-forge`);
+
+  // ── phase 3: run a full combat encounter to a terminal ──
+  demoEncounter(r2);
+  await driveCombat(r2);
+  const combat = r2.state.combat as { status: string; round: number; log: string[] };
+  if (combat.status === "active") throw new Error("FAIL: combat never resolved");
+  console.log(`  ✔ combat resolved: ${combat.status} after ${combat.round} round(s)`);
+  console.log(`     e.g. "${combat.log[combat.log.length - 1] ?? ""}"`);
   r2.destroy();
+}
+
+interface CombatView {
+  status: string;
+  activeHeroId: string | null;
+}
+interface CombatPriv {
+  combat?: {
+    yourTurn: boolean;
+    enemies: { id: string; inReach: boolean }[];
+    abilities: { id: string; ready: boolean }[];
+  };
+}
+
+/** Bots fight: the active hero attacks (occasionally fires a ready ability),
+ *  enemy turns resolve inside the engine. Timers auto-defend. */
+async function driveCombat(room: Room): Promise<void> {
+  const module = room.module;
+  const start = Date.now();
+  let turns = 0;
+  while ((room.state.combat as CombatView | undefined)?.status === "active") {
+    if (Date.now() - start > 30_000) throw new Error("SIM TIMEOUT in combat");
+    const c = room.state.combat as CombatView;
+    const activeId = c.activeHeroId;
+    if (activeId) {
+      const you = module.privateState(room, activeId) as CombatPriv;
+      const cb = you.combat;
+      if (cb?.yourTurn) {
+        turns++;
+        const target = cb.enemies.find((e) => e.inReach) ?? cb.enemies[0];
+        const ability = cb.abilities.find((a) => a.ready);
+        if (ability && turns % 3 === 0) {
+          act(room, activeId, { kind: "combat_action", action: "ability", abilityId: ability.id, targetId: target?.id });
+        } else {
+          act(room, activeId, { kind: "combat_action", action: "attack", targetId: target?.id });
+        }
+      }
+    } else if (room.timer) {
+      const t = room.timer;
+      room.clearTimer();
+      module.onTimer(room, t.label);
+    }
+    await new Promise((r) => setTimeout(r, 15));
+  }
 }
 
 const only = process.argv[2] as ModuleId | undefined;
