@@ -477,6 +477,32 @@ cost saver second.
   NO client UI for scenes/chapters yet (phase 5) — engine + Director loop complete
   and dual-validated headless. Next: phase 5 (combat + tactile phone UI), or #35 auth.
 
+- **2026-07-03** — PHASE 5 (task #31): TV + phone campaign UI, LIVE-VERIFIED
+  against real Gemini. `client/src/phone/CampaignPhone.tsx` rebuilt: phase-aware —
+  forge (phase 2) / SCENE (free-text "what do you do?" textarea → declare + fork
+  chips + mini-sheet) / COMBAT (tap actions: move chips, attack targets, ability
+  buttons w/ cooldown state, help, defend; downed spectator) / briefing (host
+  "Begin the chapter" button) / always the character sheet. `client/src/tv/
+  CampaignTv.tsx` rebuilt: Roster (forge/briefing) / SceneStage (title + check-
+  result banner + fork tally + party strip) / CombatStrip (zone columns
+  enemy_back|enemy_front | party_front|party_back + hidden, hero/enemy tokens
+  w/ HP bars, active-hero gold outline, downed dim, combat-log tail, round).
+  Campaign CSS appended to styles.css. Fixed: TV lobby no longer offers module-
+  switching for campaign rooms (and campaign is filtered out of other rooms'
+  switch targets). Dev util `server/scripts/mkcampaign.mjs` (create+forge+drive,
+  like mkroom). LIVE PROOF (dev server + real Gemini + Neon, screenshots taken):
+  lobby roster → forge → SCENE STAGE with the Interpreter loop working ("Ada
+  tried to [search for a weak plank] — success 15 vs 12", DM narrated it) →
+  COMBAT STRIP ("The Spoon Tax": Tax Collector Greg + Bureaucratic Guard vs the
+  party in zones, HP bars, active outline, log "…hits Ada for 6 (8/14)", turn
+  timer). Phone components are build-verified + shape-matched to the server
+  views + sim-verified action kinds; a two-client phone screenshot is left to
+  phase 8. typecheck + client build + all sims green. STILL DEFERRED (noted for
+  a phase-5.1/later): the tactile objects from §5.4 — standalone dice roller,
+  tap-item-to-use/reference, scene map — the playable core (text + combat +
+  fork + sheet) shipped; those are enrichment. Campaign remains unreachable on
+  master. Next: phase 6 (art), 7 (snapshots), 8 (live+merge), or #35 auth.
+
 ## 8. Open questions (to settle before/while building)
 
 - **Name**: "Chaos Campaign"? "Deep Run"? Something else — it's on the hub.

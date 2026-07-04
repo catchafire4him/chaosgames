@@ -1393,3 +1393,58 @@ input {
 .pc-cls { font-size: 13px; color: var(--ink-dim); text-transform: capitalize; }
 .pc-hp { font-size: 13px; color: var(--good); margin-top: 2px; }
 .pc-off { font-size: 11px; color: var(--danger); margin-top: 2px; }
+
+/* ── Campaign phase 5: scene + combat UI ── */
+/* phone: scene / declaration */
+.scene-phone, .combat-phone { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.declare-box {
+  width: 100%; min-height: 84px; resize: vertical; padding: 12px 14px; font-size: 16px;
+  border-radius: 10px; border: 1px solid var(--line); background: #150d06; color: var(--ink);
+  font-family: inherit;
+}
+.fork-box { border-top: 1px solid var(--line); padding-top: 10px; }
+.mini-sheet { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+.mini-sheet img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--accent); }
+.mini-sheet .hp-bar { flex: 1; }
+.mini-sheet .stat-row { flex: 2; }
+.combat-phone .ability-list button.ability { text-align: left; cursor: pointer; width: 100%; }
+.combat-phone .ability-list button.ability:disabled { opacity: 0.45; }
+
+/* TV: scene stage */
+.check-banner { padding: 10px 16px; border-radius: 10px; font-size: 18px; text-align: center; }
+.check-banner.success { background: rgba(123, 179, 86, 0.2); border: 1px solid var(--good); color: var(--ink); }
+.check-banner.fail { background: rgba(192, 57, 43, 0.18); border: 1px solid var(--danger); color: var(--ink); }
+.check-banner.impossible { background: rgba(120, 120, 120, 0.18); border: 1px solid var(--line); color: var(--ink-dim); }
+.fork-stage { text-align: center; margin: 8px 0; }
+.fork-prompt { font-size: 22px; color: var(--accent); font-family: Georgia, serif; margin-bottom: 10px; }
+.fork-options { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.fork-opt { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 20px; min-width: 140px; }
+.fork-opt span { display: block; font-size: 16px; color: var(--ink); }
+.fork-opt b { font-size: 28px; color: var(--accent); }
+.party-strip { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.party-mini { text-align: center; }
+.party-mini img { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; border: 1px solid var(--line); }
+.party-mini span { display: block; font-size: 13px; color: var(--ink-dim); }
+
+/* TV: combat encounter strip */
+.combat-tv { display: flex; flex-direction: column; gap: 16px; width: 100%; align-items: center; }
+.combat-head { display: flex; gap: 24px; align-items: baseline; }
+.combat-title { font-family: Georgia, serif; font-size: 30px; color: var(--accent); }
+.combat-round { font-size: 16px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+.zone-strip { display: flex; gap: 12px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+.zone-col { min-width: 130px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.zone-label { font-size: 12px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; text-align: center; margin-bottom: 8px; }
+.zone-divider { width: 2px; align-self: stretch; background: linear-gradient(var(--danger), transparent); margin: 20px 4px; }
+.zone-tokens { display: flex; flex-direction: column; gap: 8px; }
+.token { text-align: center; }
+.token.dead { opacity: 0.3; filter: grayscale(1); }
+.token.downed { opacity: 0.4; filter: grayscale(0.7); }
+.token.active { outline: 2px solid var(--accent); border-radius: 10px; }
+.token img { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; }
+.token.enemy { background: rgba(120, 40, 30, 0.25); border-radius: 8px; padding: 8px; }
+.token-name { font-size: 14px; color: var(--ink); margin-top: 2px; }
+.token-bar { position: relative; height: 14px; background: #2a1512; border-radius: 7px; overflow: hidden; margin-top: 3px; }
+.token-bar.hero > div { height: 100%; background: var(--good); }
+.token-bar.enemy > div { height: 100%; background: var(--danger); }
+.token-bar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
+.combat-log { max-width: 640px; font-size: 15px; color: var(--ink-dim); font-style: italic; text-align: center; line-height: 1.5; }

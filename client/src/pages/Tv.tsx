@@ -383,11 +383,12 @@ function LobbyScene({
         >
           Begin the game
         </button>
-        {modules.length > 1 && (
+        {/* Campaign rooms are bound to a persisted saga — no mode switching. */}
+        {room.moduleId !== "campaign" && modules.length > 1 && (
           <div className="switcher">
             <span className="tv-sub" style={{ fontSize: 16 }}>or play something else:</span>
             {modules
-              .filter((m) => m.id !== room.moduleId)
+              .filter((m) => m.id !== room.moduleId && m.id !== "campaign")
               .map((m) => (
                 <button
                   key={m.id}
