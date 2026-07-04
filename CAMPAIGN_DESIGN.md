@@ -503,6 +503,28 @@ cost saver second.
   fork + sheet) shipped; those are enrichment. Campaign remains unreachable on
   master. Next: phase 6 (art), 7 (snapshots), 8 (live+merge), or #35 auth.
 
+- **2026-07-03** — PHASE 7 COMPLETE (task #33). Snapshots + redeploy resume —
+  the "room not found" fix, scoped to campaigns. `chapter.ts saveScene(room,
+  phase)` serializes { phase, chapter (ChapterState), heroes (live hero objects
+  keyed by playerKey), round } to the snapshots table. Snapshot points:
+  openScene ("scene" — the resume target) and chapter_end ("briefing" — which
+  overwrites/invalidates the stale scene snapshot so a finished chapter resumes
+  to the lobby, not a replayed scene). DELIBERATELY not snapshotting mid-combat:
+  combat state is keyed by the in-memory playerId, which changes on a fresh
+  room, so a redeploy during combat (or the brief camp window) resumes at the
+  SCENE and replays the short encounter — correct, zero lost progress. Resume:
+  `index.ts tryResume()` runs in setup() BEFORE the normal briefing/forge path;
+  if the latest snapshot's phase is "scene", it overlays the snapshot's live
+  hero HP/level onto the roster, restores room.state.chapter (clearing stale
+  playerId-keyed fork votes), setPhase("scene"), and re-fires scene_intro to
+  re-set the scene for returning players. Reconnect is by player_key (phase 2).
+  VERIFIED: `npm run sim campaign` — reach a scene, wound a hero to 5 HP,
+  saveScene, DESTROY the room ("server dies"), spin up a fresh room on the same
+  campaignId → resumes into the same chapter ("The Rusted Crown") with the
+  wounded hero still at 5 HP. All other sims green; typecheck + client build
+  clean. This pattern can later wrap the other 3 modules' rooms (noted, not
+  built). Next: phase 6 (art), phase 8 (live + safe master merge), or #35 auth.
+
 ## 8. Open questions (to settle before/while building)
 
 - **Name**: "Chaos Campaign"? "Deep Run"? Something else — it's on the hub.

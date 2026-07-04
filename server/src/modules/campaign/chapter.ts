@@ -116,12 +116,31 @@ function applyOutline(room: Room, data: unknown): void {
 
 function openScene(room: Room): void {
   room.setPhase("scene");
+  void saveScene(room, "scene"); // snapshot the scene boundary for redeploy resume
   room.broadcast();
   const ch = CH(room);
   room.play({
     id: "scene_intro",
     instruction: `Set the scene: ${ch.hook}. Invite the heroes to act in their own words.${ch.fork ? ` Then pose the choice: ${ch.fork.prompt}` : ""}`,
   });
+}
+
+/** Autosave the durable mid-chapter state so a server restart resumes here.
+ *  We snapshot only at NON-combat boundaries — combat state is keyed by the
+ *  in-memory playerId, which changes on a fresh room, so a mid-combat redeploy
+ *  resumes at the scene and replays the encounter (combat is short). */
+export async function saveScene(room: Room, phase: string): Promise<void> {
+  if (!room.storage || !room.campaignId) return;
+  const heroes: Record<string, Hero> = {};
+  for (const p of room.players.values()) {
+    if (p.playerKey && p.data.hero) heroes[p.playerKey] = p.data.hero as Hero;
+  }
+  const state = { phase, chapter: (room.state.chapter as ChapterState) ?? null, heroes, round: room.round };
+  try {
+    await room.storage.saveSnapshot({ campaignId: room.campaignId, chapter: campaignState(room).chapterNum, scene: phase, state });
+  } catch (err) {
+    console.error(`[campaign:${room.code}] snapshot(${phase}) failed:`, err);
+  }
 }
 
 // ─── The Interpreter loop (free-text → engine → narration) ────────────────────
@@ -279,7 +298,11 @@ async function endChapter(room: Room, won: boolean): Promise<void> {
   room.play({
     id: "chapter_end",
     instruction: `End chapter ${n} of "${s.name}" on a cliffhanger — one or two sentences promising the next tale.`,
-    after: (r) => { r.setPhase("briefing"); r.broadcast(); },
+    after: (r) => {
+      r.setPhase("briefing");
+      void saveScene(r, "briefing"); // chapter done → resume lands on the briefing, not a stale scene
+      r.broadcast();
+    },
   });
 }
 

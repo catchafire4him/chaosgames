@@ -92,9 +92,11 @@ export const campaign: GameModule = {
 
   setup(room: Room): void {
     const s = C(room);
-    void hydrate(room).then(() => {
-      const heroesExist = Object.keys(s.roster).length > 0;
+    void hydrate(room).then(async () => {
       for (const p of room.players.values()) attachHero(room, p);
+      // a mid-chapter snapshot (a redeploy caught the party in a scene) wins
+      if (await tryResume(room)) return;
+      const heroesExist = Object.keys(s.roster).length > 0;
       if (heroesExist) {
         openBriefing(room, true);
       } else {
@@ -258,6 +260,37 @@ function heroCard(p: ServerPlayer): unknown {
 function allForged(room: Room): boolean {
   const connected = [...room.players.values()].filter((p) => p.connected);
   return connected.length > 0 && connected.every((p) => !!p.data.hero);
+}
+
+/** Redeploy resume: if the last snapshot caught the party mid-chapter (in a
+ *  scene), restore the chapter + live hero HP and drop them back into it. This
+ *  is the "room not found" fix, scoped to campaigns. */
+async function tryResume(room: Room): Promise<boolean> {
+  if (!room.storage || !room.campaignId) return false;
+  let snap;
+  try {
+    snap = await room.storage.loadSnapshot(room.campaignId);
+  } catch {
+    return false;
+  }
+  const st = snap?.state as { phase?: string; chapter?: unknown; heroes?: Record<string, Hero> } | null;
+  if (!st || st.phase !== "scene" || !st.chapter) return false; // only resume an in-progress scene
+
+  const s = C(room);
+  // overlay live hero HP/level captured at the scene boundary
+  for (const [key, hero] of Object.entries(st.heroes ?? {})) s.roster[key] = hero;
+  for (const p of room.players.values()) attachHero(room, p);
+  // restore the chapter; clear playerId-keyed fork votes (ids change on a fresh room)
+  const chapter = st.chapter as { fork?: { votes: Record<string, number> } | null; hook?: string };
+  if (chapter.fork) chapter.fork.votes = {};
+  room.state.chapter = st.chapter;
+  room.setPhase("scene");
+  room.broadcast();
+  room.play({
+    id: "scene_intro",
+    instruction: `The tale resumes. Briefly re-set the scene so returning heroes remember where they are: ${chapter.hook ?? "the story continues"}. Then invite them to act.`,
+  });
+  return true;
 }
 
 async function hydrate(room: Room): Promise<void> {

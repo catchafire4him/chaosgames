@@ -17,6 +17,7 @@ import { NullSpeaker } from "../speaker/types.js";
 import { getModule } from "../modules/registry.js";
 import { MemoryStorage } from "../storage/index.js";
 import { beginChapter } from "../modules/campaign/index.js";
+import { saveScene } from "../modules/campaign/chapter.js";
 
 const BOT_NAMES = [
   "Ada", "Bruno", "Cleo", "Dex", "Edie", "Finn",
@@ -271,6 +272,45 @@ async function runCampaign(playerCount: number): Promise<void> {
   if (camp2!.chapterNum !== 2) throw new Error(`FAIL: chapter 2 should bump chapterNum to 2, got ${camp2!.chapterNum}`);
   console.log(`  ✔ chapter 2 built on the log (recap fired) — chapterNum→${camp2!.chapterNum}`);
   r2.destroy();
+
+  // ── phase 7: a redeploy mid-scene resumes from the snapshot ──
+  const r3 = new Room(rid("rm"), "SIMC", module, director, new NullSpeaker(), "http://sim", storage);
+  r3.campaignId = campaign.id;
+  for (let i = 0; i < playerCount; i++) r3.addPlayer(BOT_NAMES[i], keys[i]);
+  r3.started = true;
+  module.setup(r3);
+  await waitFor(r3, ["briefing"], () => {});
+  await settle(r3);
+  beginChapter(r3);
+  await waitFor(r3, ["scene"], () => {});
+  const title3 = (module.publicState(r3) as { chapter: { title: string } }).chapter.title;
+  const victim = [...r3.players.values()][0];
+  (victim.data.hero as { hp: number }).hp = 5; // wound them mid-scene
+  await saveScene(r3, "scene"); // the autosave that a real scene boundary writes
+  r3.destroy(); // the server "dies"
+
+  const r4 = new Room(rid("rm"), "SIMC", module, director, new NullSpeaker(), "http://sim", storage);
+  r4.campaignId = campaign.id;
+  for (let i = 0; i < playerCount; i++) r4.addPlayer(BOT_NAMES[i], keys[i]);
+  r4.started = true;
+  module.setup(r4);
+  await waitFor(r4, ["scene"], () => {});
+  const pub4 = module.publicState(r4) as { chapter: { title: string } };
+  if (pub4.chapter.title !== title3) throw new Error(`FAIL: resume landed on the wrong chapter ("${pub4.chapter.title}" vs "${title3}")`);
+  const resumed = [...r4.players.values()].find((p) => p.playerKey === victim.playerKey)!;
+  const hp = (resumed.data.hero as { hp: number }).hp;
+  if (hp !== 5) throw new Error(`FAIL: resume should restore the wound (HP 5), got ${hp}`);
+  console.log(`  ✔ redeploy mid-scene resumed: back in "${title3}" with the wounded hero at ${hp} HP`);
+  r4.destroy();
+}
+
+/** spin until no beat is composing or awaiting playback */
+async function settle(room: Room): Promise<void> {
+  const start = Date.now();
+  while (room.pending || room.composing) {
+    if (Date.now() - start > 10_000) return;
+    await new Promise((r) => setTimeout(r, 20));
+  }
 }
 
 /** Drive one full chapter with bots: declare an action, vote the fork, fight
