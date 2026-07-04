@@ -220,6 +220,65 @@ model looks the way it does, and it constrains a few current choices:
   building the campaign, just don't key anything on display name or assume
   a `player_key` maps to exactly one human.
 
+## 5.4 Input model — the digital table (free-text + tactile) — DIRECTION LOCKED
+> User intent (2026-07-03): campaign should feel like traditional in-person
+> D&D with an AI host. Players **type what they want to do in their own words**
+> and the DM reacts and adapts around it — while the app removes the table's
+> friction (dice, math, HP, tracking). The phone is the player's **side of the
+> table**: tactile objects they'd physically have — a die to roll, collected
+> items, maps, their character sheet. The AI improvises options and story
+> around what players do and what they pick up. Target = free-text EVERYWHERE;
+> **start HYBRID** (free-text in exploration/social/puzzle scenes; keep the
+> phase-3 tap actions in combat) because it's easier to land first, then widen.
+> Voice input is text-only for v1 (design the pipeline so mic→transcript is a
+> drop-in later).
+
+**Why this is safe (not the whisper-wit trap):** the old pain was the AI being
+in the flow-control critical path. Here the AI only **interprets intent and
+narrates**; the ENGINE still owns every die, HP total, DC, and turn. Phases 1–3
+(persistence + authoritative rules) are precisely what make free-text safe —
+the engine is the guardrail that keeps the DM an improv partner, not a pushover.
+
+### The Interpreter loop
+```
+player types intent  →  Director "interpret" beat (structured, cheap) →
+engine rolls + applies rules  →  Director narrates the ENGINE's verdict
+```
+- **Interpret beat** returns small structured JSON, e.g.
+  `{ interpretedAs, stat: "heart", difficulty: "hard", plausible: true,
+     targets?, mechanic?: "attack|ability|move|skill", grantsAdvantage?: bool }`.
+  The Director may NOT decide success — it only classifies the attempt. If
+  something is impossible it returns `plausible:false` and the DM says so in
+  character. This is the anti-"talk the AI into winning" guardrail.
+- **Engine resolves** via `skillCheck()` / combat (phase 3) and hands back the
+  outcome; **Director narrates that outcome** and may offer follow-on options.
+- **Cost control**: interpret is a tiny flash-lite call fired only on genuine
+  declarations (not keystrokes); narration is the existing beat. Combat stays
+  structured in the hybrid start to avoid a call per swing.
+
+### The phone as a tactile table
+Always-available objects (not just menus):
+- **Dice** — a physical-feeling roller; when the DM calls for a check the phone
+  surfaces the die + the relevant stat, player taps to roll (engine is still
+  authoritative — the animation just visualizes the engine's number). Shake-to-
+  roll reuses the dungeon DeviceMotion hook.
+- **Inventory / items** — tap an item to use or to reference it in a declaration
+  ("I hold up the {sentient map}"); using an item feeds the Interpreter.
+- **Map** — a simple scene/region map the DM can pin locations onto; tapping a
+  place can seed a declaration ("I head to the {crypt}").
+- **Character sheet** — stats/HP/abilities (already built in phase 2).
+- A **free-text "what do you do?" field** is the primary verb everywhere; the
+  DM can also *impromptu* offer tappable choice chips when it wants to pace a
+  moment or present a fork.
+
+### Rollout
+- **Hybrid v1**: free-text Interpreter drives scene beats (phase 4); combat
+  keeps phase-3 tap actions; dice + inventory + sheet tactile objects on the
+  phone (phase 5). A typed action in combat is a stretch goal (map it to a
+  mechanic + optional advantage).
+- **Free-text-everywhere v2**: typed declarations in combat too, mapped onto
+  the mechanics with situational advantage; voice input.
+
 ## 6. TV & phone UX (v1 sketch)
 
 - **TV**: scene art + narration as today; in combat, an **encounter strip**
