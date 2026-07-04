@@ -1304,3 +1304,92 @@ input {
   .location-grid { grid-template-columns: repeat(2, 1fr); }
   body { overflow: auto; }
 }
+
+/* ─── Campaign (module 4) ─────────────────────────────────────────────── */
+[data-theme="campaign"] {
+  --bg: #120b06;
+  --panel: rgba(32, 20, 10, 0.84);
+  --panel-solid: #22160a;
+  --ink: #f4e7cf;
+  --ink-dim: #b6a382;
+  --accent: #d9a441;
+  --accent-ink: #221202;
+  --danger: #c0392b;
+  --good: #7bb356;
+  --line: #4a3620;
+  --radius: 12px;
+  --font: "Trebuchet MS", Verdana, sans-serif;
+  --title-font: Georgia, serif;
+}
+
+/* hub launch panel */
+.campaign-launch {
+  margin: 18px auto 0;
+  max-width: 560px;
+  width: 100%;
+  background: linear-gradient(#2a1a0c, #1c1207);
+  border: 1px solid #6b4a25;
+  border-radius: 14px;
+  padding: 16px 18px;
+  text-align: left;
+}
+.campaign-launch .cl-head { margin-bottom: 12px; }
+.campaign-launch .cl-head b { color: #d9a441; font-size: 20px; font-family: Georgia, serif; display: block; }
+.campaign-launch .cl-head span { color: #b6a382; font-size: 14px; }
+.campaign-launch .cl-row { display: flex; gap: 8px; margin-top: 8px; }
+.campaign-launch input {
+  flex: 1; padding: 11px 14px; border-radius: 10px;
+  border: 1px solid #6b4a25; background: #150d06; color: #f4e7cf; font-size: 16px;
+}
+.campaign-launch button { white-space: nowrap; }
+
+/* phone forge + sheet */
+.forge, .hero-sheet { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.forge-portrait { display: flex; justify-content: center; }
+.forge-portrait img, .sheet-head img {
+  width: 92px; height: 92px; border-radius: 12px; object-fit: cover;
+  border: 2px solid var(--accent); background: #150d06;
+}
+.class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.class-grid button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; text-align: left; }
+.class-grid button b { font-size: 15px; }
+.class-grid button span { font-size: 12px; opacity: 0.8; }
+.stat-row { display: flex; gap: 6px; }
+.stat-pill {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  background: var(--panel-solid); border: 1px solid var(--line); border-radius: 8px; padding: 6px 2px;
+}
+.stat-pill span { font-size: 11px; color: var(--ink-dim); }
+.stat-pill b { font-size: 18px; color: var(--accent); }
+.ability-list { display: flex; flex-direction: column; gap: 6px; }
+.ability { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.ability b { color: var(--ink); }
+.ability em { color: var(--accent); font-size: 11px; margin-left: 4px; }
+.ability span { display: block; color: var(--ink-dim); margin-top: 2px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-row button { font-size: 13px; padding: 6px 10px; }
+.forge-go { margin-top: 6px; font-size: 18px; padding: 14px; }
+.sheet-head { display: flex; gap: 12px; align-items: center; }
+.sheet-name { font-size: 20px; font-family: Georgia, serif; color: var(--accent); }
+.sheet-sub { font-size: 13px; color: var(--ink-dim); text-transform: capitalize; }
+.hp-bar { position: relative; height: 18px; background: #3a1512; border-radius: 9px; margin-top: 6px; overflow: hidden; }
+.hp-fill { height: 100%; background: linear-gradient(#7bb356, #4c8f3a); }
+.hp-bar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
+
+/* TV party grid */
+.campaign-tv { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+.campaign-banner { text-align: center; }
+.campaign-title { font-family: Georgia, serif; font-size: 40px; color: var(--accent); }
+.campaign-chapter { font-size: 18px; color: var(--ink-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+.party-grid { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+.party-card {
+  width: 150px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px; text-align: center; transition: border-color 0.3s;
+}
+.party-card.ready { border-color: var(--accent); }
+.party-card.waiting { opacity: 0.75; }
+.party-card img { width: 96px; height: 96px; border-radius: 10px; object-fit: cover; }
+.pc-name { font-size: 17px; color: var(--ink); margin-top: 6px; }
+.pc-cls { font-size: 13px; color: var(--ink-dim); text-transform: capitalize; }
+.pc-hp { font-size: 13px; color: var(--good); margin-top: 2px; }
+.pc-off { font-size: 11px; color: var(--danger); margin-top: 2px; }

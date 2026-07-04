@@ -3,6 +3,7 @@ import type { Director } from "./director/types.js";
 import type { Speaker } from "./speaker/types.js";
 import type { Storage } from "./storage/index.js";
 import { Room, rid } from "./engine/room.js";
+import type { GameModule } from "./engine/types.js";
 import { getModule } from "./modules/registry.js";
 
 /** no ambiguous letters (I/O/L) */
@@ -39,11 +40,62 @@ export class RoomManager {
       ).join("");
     } while (this.byCode.has(code));
 
+    const room = this.build(module, code);
+    console.log(`[rooms] created ${code} (${moduleId}) — ${this.rooms.size} active`);
+    return room;
+  }
+
+  /** shared room construction (code already reserved-unique) */
+  private build(module: GameModule, code: string): Room {
     const joinUrl = `${this.publicUrl}/#/play/${code}`;
-    const room = new Room(rid("rm"), code, module, this.director, this.speaker, joinUrl);
+    const room = new Room(rid("rm"), code, module, this.director, this.speaker, joinUrl, this.storage);
     this.rooms.set(room.id, room);
     this.byCode.set(code, room);
-    console.log(`[rooms] created ${code} (${moduleId}) — ${this.rooms.size} active`);
+    return room;
+  }
+
+  private freshCode(): string {
+    let code: string;
+    do {
+      code = Array.from(
+        { length: 4 },
+        () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)],
+      ).join("");
+    } while (this.byCode.has(code));
+    return code;
+  }
+
+  /** Campaign: create a brand-new persisted campaign and a room bound to it.
+   *  The campaign's join code IS the room code, so it's reusable next session. */
+  async createCampaign(name: string): Promise<Room> {
+    if (this.rooms.size >= MAX_ROOMS) throw new Error("The parlor is at capacity right now — try again in a bit.");
+    if (!this.storage) throw new Error("Campaigns need persistence, which isn't configured.");
+    const module = getModule("campaign");
+    if (!module) throw new Error("Campaign mode isn't available.");
+    const code = this.freshCode();
+    const campaign = await this.storage.createCampaign({ joinCode: code, name: name.slice(0, 40).trim() || "Untitled Campaign" });
+    const room = this.build(module, code);
+    room.campaignId = campaign.id;
+    console.log(`[rooms] created campaign ${code} "${campaign.name}" — ${this.rooms.size} active`);
+    return room;
+  }
+
+  /** Campaign: reopen an existing campaign by code. Reuses a live room if one
+   *  is still up; otherwise rebuilds from the DB (heroes rehydrated by the
+   *  module's setup/hydrate path). */
+  async resumeCampaign(code: string): Promise<Room> {
+    if (!this.storage) throw new Error("Campaigns need persistence, which isn't configured.");
+    const norm = code.trim().toUpperCase();
+    const live = this.byCode.get(norm);
+    if (live && live.campaignId) return live;
+    const campaign = await this.storage.getCampaignByCode(norm);
+    if (!campaign) throw new Error("No campaign with that code.");
+    if (this.rooms.size >= MAX_ROOMS) throw new Error("The parlor is at capacity right now — try again in a bit.");
+    const module = getModule("campaign");
+    if (!module) throw new Error("Campaign mode isn't available.");
+    const room = this.build(module, campaign.joinCode);
+    room.campaignId = campaign.id;
+    console.log(`[rooms] resumed campaign ${campaign.joinCode} "${campaign.name}"`);
     return room;
   }
 

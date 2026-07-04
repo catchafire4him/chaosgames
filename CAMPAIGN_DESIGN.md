@@ -184,6 +184,42 @@ validates the outline like any other structured output.
   history, scoreboards across evenings) — same identity, more tables later.
 - The snapshot pattern can later wrap the other three modules' rooms.
 
+### 5.3 Optional accounts — APP-WIDE (planned, not v1-blocking)
+> User intent (2026-07-03): login should be **optional across ALL modules**,
+> not just Campaign. If you log in, the app remembers your name, and tracks
+> your stats, the characters you've created, and more — but you can still
+> change your display name each session (it's half the fun). Anonymous play
+> stays the default everywhere; login only ever *adds*.
+
+Nothing here needs building now — but it's the reason the phase-1 identity
+model looks the way it does, and it constrains a few current choices:
+
+- **`player_key` is the anchor, login is a claim, not a replacement.** The
+  device-minted `player_key` (localStorage) stays the runtime identity in
+  every module. Logging in **links** that key to an account; the account
+  can own several keys (phone + laptop) and inherits their history. So the
+  campaign shell's player-key plumbing (phase 2) is *also* the auth plumbing
+  — build it once, cleanly.
+- **Provider: Neon Auth (Stack Auth)** — native to our DB, provisionable via
+  the Neon MCP (`provision_neon_auth`), which creates a `neon_auth.users_sync`
+  table. That becomes the account anchor; add a nullable `account_id` (→
+  `users_sync.id`) to `players` in an additive migration when we build it.
+  Postgres handles the nullable-column add with zero rework to phase 1.
+- **Display name stays mutable** — already a separate column from identity,
+  so "remember my name but let me rename per game" is a default, not a
+  special case. Don't ever key anything on display name.
+- **Stats/characters need identity-keyed persistence to survive.** Campaign
+  characters already are (keyed by `player_key`). The party-night scoreboard
+  is currently an in-memory `Map` (ephemeral by design) — turning that into
+  cross-session stats = persist it keyed by `player_key`, additive, no game-
+  logic change. Do NOT special-case this into any module now; it's one later
+  pass that lights up all modules at once.
+- **Sequencing recommendation**: do the auth pass as its own slice right
+  AFTER phase 2 (once player-key plumbing exists and is proven), before it's
+  worth persisting cross-module stats. It is not a phase-1/2 blocker; keep
+  building the campaign, just don't key anything on display name or assume
+  a `player_key` maps to exactly one human.
+
 ## 6. TV & phone UX (v1 sketch)
 
 - **TV**: scene art + narration as today; in combat, an **encounter strip**
@@ -287,6 +323,31 @@ cost saver second.
   the sim (`npm run sim`) must always pass with the in-memory storage fake
   and MockDirector — no API keys or DB required for CI-style checks.
 - **Handoff**: keep §9 (build log) current — future agents resume from it.
+
+- **2026-07-03** — PHASE 2 COMPLETE (task #28). Campaign SHELL + HERO FORGE
+  (lobby → forge → briefing). Server: `server/src/modules/campaign/index.ts`
+  (6 classes w/ stats+2 abilities each, 4-stat forge, HP = 8+2·MIGHT+2·lvl,
+  mad-libs quirks; setup() hydrates from DB → forge for a new party or straight
+  to briefing on resume; forge persists every hero via `upsertCharacter`).
+  Identity: `ServerPlayer.playerKey` + `Room.campaignId`/`Room.storage`;
+  join_player carries `playerKey`, server `getOrCreatePlayer` + reclaims a
+  hero by device key. New protocol msgs `create_campaign`/`resume_campaign`
+  → `RoomManager.createCampaign/resumeCampaign` (campaign join code = room
+  code). `create_room`/`switch_module` guard campaign so it's ONLY reachable
+  via the campaign create/resume flow. `ModuleId += "campaign"` (shared).
+  Client: `net/playerKey.ts` (localStorage UUID), `phone/CampaignPhone.tsx`
+  (forge + always-on character sheet), `tv/CampaignTv.tsx` (party roster),
+  campaign theme in theme.ts + styles.css, hub launch panel in Landing.tsx,
+  switches in Play/Tv. VERIFIED: `npm run sim campaign` forges + persists 4
+  heroes to memory storage AND resumes a fresh room with 4/4 heroes
+  reattached by player_key (no re-forge); all other sims still green;
+  server typecheck + client build clean. NOT yet done (deferred): custom
+  stat re-assignment (phase-2 ships one-tap class-default spread — design §2.1
+  allows this; free-assign is a polish follow-up); full live browser forge
+  (two-client flow — belongs to phase 8 live verification; dev port was held
+  by another process this session). Still on campaign branch; nothing merged.
+  Next: phase 3 (task #29, rules engine) — or the auth slice (#35) which is
+  now unblocked.
 
 ## 8. Open questions (to settle before/while building)
 

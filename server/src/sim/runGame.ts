@@ -15,6 +15,7 @@ import type { Director } from "../director/types.js";
 import { Room, rid } from "../engine/room.js";
 import { NullSpeaker } from "../speaker/types.js";
 import { getModule } from "../modules/registry.js";
+import { MemoryStorage } from "../storage/index.js";
 
 const BOT_NAMES = [
   "Ada", "Bruno", "Cleo", "Dex", "Edie", "Finn",
@@ -56,6 +57,27 @@ function botTick(room: Room): void {
         break;
       }
       case "forge": {
+        if (room.module.id === "campaign") {
+          const f = (you.forge ?? null) as {
+            suggestedClass: string;
+            classes: { id: string; defaultStats: Record<string, number> }[];
+            adjectives: string[];
+            items: string[];
+            backstories: string[];
+          } | null;
+          if (f) {
+            const cls = f.classes.find((c) => c.id === f.suggestedClass);
+            act(room, p.id, {
+              kind: "forge_submit",
+              cls: f.suggestedClass,
+              stats: cls?.defaultStats,
+              adjective: f.adjectives[0],
+              item: f.items[0],
+              backstory: f.backstories[0],
+            });
+          }
+          break;
+        }
         const opts = (you.forgeOptions ?? null) as {
           adjectives: string[];
           items: string[];
@@ -167,6 +189,68 @@ async function runGame(
   room.destroy();
 }
 
+/** wait until the room reaches one of `phases` (or time out) */
+async function waitFor(room: Room, phases: string[], drive: () => void): Promise<void> {
+  const start = Date.now();
+  while (!phases.includes(room.phase)) {
+    if (Date.now() - start > 30_000) throw new Error(`SIM TIMEOUT waiting for ${phases} (in "${room.phase}")`);
+    drive();
+    if (room.timer) {
+      const t = room.timer;
+      room.clearTimer();
+      room.module.onTimer(room, t.label);
+    }
+    await new Promise((r) => setTimeout(r, 60));
+  }
+}
+
+/** Campaign (phase 2): forge a party, prove it persists, then prove a fresh
+ *  room bound to the same campaign resumes with the party intact. */
+async function runCampaign(playerCount: number): Promise<void> {
+  const module = getModule("campaign")!;
+  const director = new MockDirector();
+  const storage = new MemoryStorage();
+  await storage.init();
+  const campaign = await storage.createCampaign({ joinCode: "SIMC", name: "The Sim Saga" });
+
+  console.log(`\n=== SIM: campaign with ${playerCount} bots (forge + persist + resume) ===`);
+
+  // ── night one: forge ──
+  const r1 = new Room(rid("rm"), "SIMC", module, director, new NullSpeaker(), "http://sim", storage);
+  r1.campaignId = campaign.id;
+  const keys: string[] = [];
+  for (let i = 0; i < playerCount; i++) {
+    const key = `simkey-${i}`;
+    keys.push(key);
+    const p = r1.addPlayer(BOT_NAMES[i], key);
+    await storage.getOrCreatePlayer(key, BOT_NAMES[i]);
+    void p;
+  }
+  r1.started = true;
+  module.setup(r1);
+  await waitFor(r1, ["briefing"], () => botTick(r1));
+  const saved = await storage.listCharacters(campaign.id);
+  if (saved.length !== playerCount) throw new Error(`FAIL: expected ${playerCount} heroes persisted, got ${saved.length}`);
+  console.log(`  ✔ forged + persisted ${saved.length} heroes (e.g. ${saved[0].name} the ${saved[0].cls}, ${saved[0].maxHp} HP)`);
+  r1.destroy();
+
+  // ── night two: a brand-new room (server "restarted") resumes from the DB ──
+  const r2 = new Room(rid("rm"), "SIMC", module, director, new NullSpeaker(), "http://sim", storage);
+  r2.campaignId = campaign.id;
+  for (let i = 0; i < playerCount; i++) {
+    const p = r2.addPlayer(BOT_NAMES[i], keys[i]);
+    void p;
+  }
+  r2.started = true;
+  module.setup(r2);
+  await waitFor(r2, ["briefing"], () => {});
+  const pub = module.publicState(r2) as { party: { ready: boolean; name: string }[] };
+  const ready = pub.party.filter((h) => h.ready).length;
+  if (ready !== playerCount) throw new Error(`FAIL: resume attached ${ready}/${playerCount} heroes`);
+  console.log(`  ✔ resumed campaign — ${ready}/${playerCount} heroes reattached by player_key, no re-forge`);
+  r2.destroy();
+}
+
 const only = process.argv[2] as ModuleId | undefined;
 const runs: [ModuleId, number, Partial<RoomSettings>?][] = [
   ["conspiracy", 10], // godfather + vigilante + jester
@@ -179,5 +263,6 @@ for (const [id, count, settings] of runs) {
   if (only && only !== id) continue;
   await runGame(id, count, settings);
 }
+if (!only || only === "campaign") await runCampaign(4);
 console.log("\nAll sims passed.");
 process.exit(0);

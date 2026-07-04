@@ -1,6 +1,6 @@
 /** Shared game types — the contract between server, TV and phones. */
 
-export type ModuleId = "conspiracy" | "whodunnit" | "dungeon";
+export type ModuleId = "conspiracy" | "whodunnit" | "dungeon" | "campaign";
 
 export type PlayerStatus = "alive" | "dead";
 

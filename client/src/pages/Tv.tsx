@@ -11,6 +11,7 @@ import { moduleArt, PlayerChip, PlayerGrid, SfxFlash, TimerChip } from "../ui";
 import { ConspiracyTv } from "../tv/ConspiracyTv";
 import { WhodunnitTv } from "../tv/WhodunnitTv";
 import { DungeonTv } from "../tv/DungeonTv";
+import { CampaignTv } from "../tv/CampaignTv";
 
 export function Tv({ roomId }: { roomId: string }) {
   const [room, setRoom] = useState<PublicRoom | null>(null);
@@ -453,6 +454,8 @@ function GameScene({
           <ConspiracyTv room={room} />
         ) : room.moduleId === "dungeon" ? (
           <DungeonTv room={room} />
+        ) : room.moduleId === "campaign" ? (
+          <CampaignTv room={room} />
         ) : (
           <WhodunnitTv room={room} />
         )}

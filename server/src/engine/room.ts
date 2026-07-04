@@ -11,6 +11,7 @@ import {
 } from "../../../shared/src/index.js";
 import type { Director } from "../director/types.js";
 import type { Speaker } from "../speaker/types.js";
+import type { Storage } from "../storage/index.js";
 import type { Beat, GameModule } from "./types.js";
 import { runBeat, type PendingNarration } from "./beats.js";
 
@@ -23,6 +24,9 @@ export interface ServerPlayer {
   tag: string | null;
   done: boolean;
   spotlight: boolean;
+  /** device identity (Campaign): localStorage UUID, links this seat to a
+   *  persisted hero and lets it be reclaimed across sessions. */
+  playerKey: string | null;
   /** module scratch: role, votes, clues, messages, ... */
   data: Record<string, unknown>;
   sockets: Set<WebSocket>;
@@ -78,6 +82,11 @@ export class Room {
   /** narration currently awaiting TV playback acks (set by beats.ts) */
   pending: PendingNarration | null = null;
 
+  /** Campaign only: the persisted campaign this room is bound to. */
+  campaignId: string | null = null;
+  /** persistence backend (Campaign module); undefined for the party modes */
+  readonly storage?: Storage;
+
   constructor(
     readonly id: string,
     readonly code: string,
@@ -86,7 +95,10 @@ export class Room {
     readonly director: Director,
     readonly speaker: Speaker,
     readonly joinUrl: string,
-  ) {}
+    storage?: Storage,
+  ) {
+    this.storage = storage;
+  }
 
   /** Lobby-only: swap the game mode, keeping the room code and players. */
   switchModule(module: GameModule): void {
@@ -175,7 +187,7 @@ export class Room {
 
   // ─── Players ───────────────────────────────────────────────────────────────
 
-  addPlayer(name: string): ServerPlayer {
+  addPlayer(name: string, playerKey: string | null = null): ServerPlayer {
     const player: ServerPlayer = {
       id: rid("pl"),
       name: name.slice(0, 20).trim() || "Player",
@@ -185,6 +197,7 @@ export class Room {
       tag: null,
       done: false,
       spotlight: false,
+      playerKey,
       data: {},
       sockets: new Set(),
     };

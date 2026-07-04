@@ -72,6 +72,17 @@ const THEMES: Record<ModuleId, Theme> = {
       return art ? `/img/dnd/rooms/${art}.png` : undefined;
     },
   },
+  // Campaign reuses the dungeon art set for v1 (generated scenes land in phase 6)
+  campaign: {
+    id: "campaign",
+    lobbyBg: "/img/dnd/rooms/room_2.png",
+    phaseBg: {
+      forge: "/img/dnd/rooms/room_1.png",
+      briefing: "/img/dnd/rooms/room_3.png",
+    },
+    fallbackBg: "/img/dnd/rooms/room_2.png",
+    music: "/audio/dungeon-theme.mp3",
+  },
 };
 
 export function themeFor(moduleId: ModuleId | null | undefined): Theme {
@@ -109,8 +120,15 @@ export function themedAvatarSrc(
   moduleId: ModuleId | null | undefined,
   avatar: string,
 ): string {
-  if (moduleId === "dungeon") {
+  if (moduleId === "dungeon" || moduleId === "campaign") {
     return `/img/dnd/portraits/${dungeonPortraitFor(avatar)}.png`;
   }
   return `/img/portraits/${avatar}.png`;
+}
+
+/** Class portrait for a Campaign hero (their chosen class, m/f from avatar). */
+export function campaignPortrait(cls: string, avatar: string): string {
+  const idx = Math.max(0, (parseInt(avatar.replace(/\D/g, ""), 10) || 1) - 1);
+  const sex = idx % 2 === 0 ? "m" : "f";
+  return `/img/dnd/portraits/${cls}_${sex}.png`;
 }
