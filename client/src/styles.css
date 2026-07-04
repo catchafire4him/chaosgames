@@ -361,6 +361,11 @@ input {
   width: 100%;
 }
 
+/* Corner flourishes are opt-in per theme (conspiracy/whodunnit position them
+   absolutely). Hidden by default so they don't consume flex gaps on Dungeon —
+   that was pushing the panel content ~80px down. */
+.conspiracy-decor { display: none; }
+
 .audio-panel input[type="range"] {
   width: 100%;
   max-width: 230px;
