@@ -28,6 +28,10 @@ export type HostCommand =
 export type ClientMessage =
   | { type: "list_modules" }
   | { type: "create_room"; moduleId: ModuleId }
+  /** Campaign: start a brand-new persistent campaign (TV). Returns room_created. */
+  | { type: "create_campaign"; name: string }
+  /** Campaign: reopen an existing campaign by its code, rehydrated from the DB (TV). */
+  | { type: "resume_campaign"; code: string }
   | { type: "join_tv"; roomId: string }
   | {
       type: "join_player";
@@ -36,6 +40,8 @@ export type ClientMessage =
       name: string;
       /** for rejoin after refresh/disconnect */
       playerId?: string;
+      /** device identity (localStorage UUID) — persists heroes/seat across sessions */
+      playerKey?: string;
     }
   | { type: "action"; action: PlayerAction }
   | {

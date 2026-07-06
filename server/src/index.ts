@@ -19,6 +19,9 @@ import type { Director } from "./director/types.js";
 import type { Room } from "./engine/room.js";
 import { getModule, listModules } from "./modules/registry.js";
 import { RoomManager } from "./roomManager.js";
+import { createStorage } from "./storage/index.js";
+import { createArtist } from "./artist/index.js";
+import { attachHero } from "./modules/campaign/index.js";
 
 // GAME_PORT wins over PORT so dev tooling that injects PORT (preview panels,
 // vite wrappers) can't collide with the game server. Railway still sets PORT.
@@ -48,9 +51,22 @@ const director: Director =
 const speaker: Speaker =
   speakerKind === "gemini" && apiKey ? new GeminiTtsSpeaker(apiKey) : new NullSpeaker();
 
-console.log(`[boot] director=${director.kind} speaker=${speaker.kind} public=${PUBLIC_URL}`);
+// Persistence (Campaign module). Memory by default; Neon when DATABASE_URL is
+// set. init() is idempotent — it (re)applies the schema. A DB failure must not
+// take down the live party modules, which don't use storage.
+const storage = createStorage();
+try {
+  await storage.init();
+  console.log(`[boot] storage=${storage.kind}`);
+} catch (err) {
+  console.error("[boot] storage init failed — campaign persistence disabled:", err);
+}
 
-const rooms = new RoomManager(director, speaker, PUBLIC_URL);
+const artist = createArtist();
+
+console.log(`[boot] director=${director.kind} speaker=${speaker.kind} artist=${artist.kind} public=${PUBLIC_URL}`);
+
+const rooms = new RoomManager(director, speaker, PUBLIC_URL, storage, artist);
 
 // ─── Static files (built client) ──────────────────────────────────────────────
 
@@ -72,6 +88,21 @@ const httpServer = createServer(async (req, res) => {
   const url = (req.url ?? "/").split("?")[0];
   if (url === "/healthz") {
     res.writeHead(200, { "content-type": "text/plain" }).end("ok");
+    return;
+  }
+  // Generated art (Campaign): serve image bytes from the asset library.
+  const assetMatch = /^\/asset\/([a-f0-9-]{16,})$/i.exec(url);
+  if (assetMatch) {
+    try {
+      const a = await storage.getAsset(assetMatch[1]);
+      if (a?.image) {
+        res.writeHead(200, { "content-type": a.mime, "cache-control": "public,max-age=31536000,immutable" }).end(a.image);
+        return;
+      }
+    } catch (err) {
+      console.warn("[asset] serve failed:", (err as Error).message);
+    }
+    res.writeHead(404).end();
     return;
   }
   const rel = url === "/" ? "index.html" : url.slice(1);
@@ -178,6 +209,9 @@ function runHostCommand(
       return null;
     case "switch_module": {
       if (room.started || !msg.moduleId) return null;
+      // Campaign rooms are bound to a persisted saga — you can't switch a
+      // campaign into a party mode or a party room into a campaign.
+      if (msg.moduleId === "campaign" || room.campaignId) return null;
       const module = getModule(msg.moduleId);
       if (module) room.switchModule(module);
       return null;
@@ -239,6 +273,10 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
         send(ws, { type: "error", message: "Hold on — one room at a time." });
         return;
       }
+      if (msg.moduleId === "campaign") {
+        send(ws, { type: "error", message: "Start a campaign with New Campaign, not a quick room." });
+        return;
+      }
       try {
         const room = rooms.create(msg.moduleId);
         ctx.lastCreateAt = Date.now();
@@ -246,6 +284,27 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
       } catch (err) {
         send(ws, { type: "error", message: (err as Error).message });
       }
+      return;
+    }
+
+    case "create_campaign": {
+      if (Date.now() - ctx.lastCreateAt < 5000) {
+        send(ws, { type: "error", message: "Hold on — one room at a time." });
+        return;
+      }
+      ctx.lastCreateAt = Date.now();
+      void rooms
+        .createCampaign(msg.name)
+        .then((room) => send(ws, { type: "room_created", roomId: room.id, code: room.code }))
+        .catch((err) => send(ws, { type: "error", message: (err as Error).message }));
+      return;
+    }
+
+    case "resume_campaign": {
+      void rooms
+        .resumeCampaign(msg.code)
+        .then((room) => send(ws, { type: "room_created", roomId: room.id, code: room.code }))
+        .catch((err) => send(ws, { type: "error", message: (err as Error).message }));
       return;
     }
 
@@ -269,10 +328,18 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
         send(ws, { type: "error", message: "Room not found — check the code." });
         return;
       }
+      const playerKey = typeof msg.playerKey === "string" ? msg.playerKey : null;
+      // record the identity (Campaign persistence / future accounts). Fire and
+      // forget: the players row only needs to exist before the forge persists.
+      if (playerKey && room.storage) {
+        void room.storage.getOrCreatePlayer(playerKey, msg.name).catch(() => {});
+      }
+
       // Rejoin (refresh / reconnect) with a remembered playerId
       const existing = msg.playerId ? room.players.get(msg.playerId) : undefined;
       if (existing) {
         existing.connected = true;
+        if (playerKey) existing.playerKey = playerKey;
         existing.sockets.add(ws);
         ctx.room = room;
         ctx.role = "player";
@@ -280,6 +347,22 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
         send(ws, { type: "joined_player", roomId: room.id, playerId: existing.id });
         room.broadcast();
         return;
+      }
+
+      // Campaign: reclaim a seat by device key (fresh browser, no playerId) —
+      // your hero follows your player_key across sessions.
+      if (playerKey && room.campaignId) {
+        const byKey = [...room.players.values()].find((p) => p.playerKey === playerKey);
+        if (byKey) {
+          byKey.connected = true;
+          byKey.sockets.add(ws);
+          ctx.room = room;
+          ctx.role = "player";
+          ctx.playerId = byKey.id;
+          send(ws, { type: "joined_player", roomId: room.id, playerId: byKey.id });
+          room.broadcast();
+          return;
+        }
       }
       if (room.started) {
         // seat transfer: a dead phone can be replaced by rejoining with the
@@ -308,8 +391,10 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
         send(ws, { type: "error", message: "Room is full." });
         return;
       }
-      const player = room.addPlayer(msg.name);
+      const player = room.addPlayer(msg.name, playerKey);
       player.sockets.add(ws);
+      // Campaign: if this device already has a hero in this campaign, reattach it
+      if (room.campaignId) attachHero(room, player);
       ctx.room = room;
       ctx.role = "player";
       ctx.playerId = player.id;

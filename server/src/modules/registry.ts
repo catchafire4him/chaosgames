@@ -3,12 +3,14 @@ import type { GameModule } from "../engine/types.js";
 import { conspiracy } from "./conspiracy/index.js";
 import { whodunnit } from "./whodunnit/index.js";
 import { dungeon } from "./dungeon/index.js";
+import { campaign } from "./campaign/index.js";
 
 /** Add a game mode: implement GameModule in its own folder, register here. */
 const MODULES: Record<ModuleId, GameModule> = {
   conspiracy,
   whodunnit,
   dungeon,
+  campaign,
 };
 
 export function getModule(id: ModuleId): GameModule | undefined {

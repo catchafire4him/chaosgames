@@ -7,6 +7,8 @@ import { themedAvatarSrc } from "../theme";
 import { ConspiracyPhone } from "../phone/ConspiracyPhone";
 import { WhodunnitPhone } from "../phone/WhodunnitPhone";
 import { DungeonPhone } from "../phone/DungeonPhone";
+import { CampaignPhone } from "../phone/CampaignPhone";
+import { playerKey } from "../net/playerKey";
 
 export type Send = (msg: ClientMessage) => void;
 
@@ -33,6 +35,7 @@ export function Play({ code }: { code: string }) {
       room: code,
       name: joinedName,
       playerId: playerId ?? undefined,
+      playerKey: playerKey(),
     };
   }, [code, joinedName, playerId]);
 
@@ -173,6 +176,8 @@ export function Play({ code }: { code: string }) {
             <ConspiracyPhone room={room} me={me} you={you} send={send} />
           ) : room.moduleId === "dungeon" ? (
             <DungeonPhone room={room} me={me} you={you} send={send} />
+          ) : room.moduleId === "campaign" ? (
+            <CampaignPhone room={room} me={me} you={you} send={send} />
           ) : (
             <WhodunnitPhone room={room} me={me} you={you} send={send} />
           )
@@ -306,16 +311,20 @@ function HostPanel({ room, send }: { room: PublicRoom; send: Send }) {
                 </>
               )}
 
-              <div className="host-section">Switch game</div>
-              <div className="seg-row">
-                {(["conspiracy", "whodunnit", "dungeon"] as ModuleId[])
-                  .filter((m) => m !== room.moduleId)
-                  .map((m) => (
-                    <button key={m} onClick={() => host({ command: "switch_module", moduleId: m })}>
-                      {m === "dungeon" ? "Dungeon Run" : m}
-                    </button>
-                  ))}
-              </div>
+              {room.moduleId !== "campaign" && (
+                <>
+                  <div className="host-section">Switch game</div>
+                  <div className="seg-row">
+                    {(["conspiracy", "whodunnit", "dungeon"] as ModuleId[])
+                      .filter((m) => m !== room.moduleId)
+                      .map((m) => (
+                        <button key={m} onClick={() => host({ command: "switch_module", moduleId: m })}>
+                          {m === "dungeon" ? "Dungeon Run" : m}
+                        </button>
+                      ))}
+                  </div>
+                </>
+              )}
 
               {room.players.some((p) => !p.connected) && (
                 <>

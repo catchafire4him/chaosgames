@@ -11,6 +11,7 @@ import { moduleArt, PlayerChip, PlayerGrid, SfxFlash, TimerChip } from "../ui";
 import { ConspiracyTv } from "../tv/ConspiracyTv";
 import { WhodunnitTv } from "../tv/WhodunnitTv";
 import { DungeonTv } from "../tv/DungeonTv";
+import { CampaignTv } from "../tv/CampaignTv";
 
 export function Tv({ roomId }: { roomId: string }) {
   const [room, setRoom] = useState<PublicRoom | null>(null);
@@ -384,11 +385,12 @@ function LobbyScene({
         >
           Begin the game
         </button>
-        {modules.length > 1 && (
+        {/* Campaign rooms are bound to a persisted saga — no mode switching. */}
+        {room.moduleId !== "campaign" && modules.length > 1 && (
           <div className="switcher">
             <span className="tv-sub" style={{ fontSize: 16 }}>or play something else:</span>
             {modules
-              .filter((m) => m.id !== room.moduleId)
+              .filter((m) => m.id !== room.moduleId && m.id !== "campaign")
               .map((m) => (
                 <button
                   key={m.id}
@@ -498,6 +500,8 @@ function GameScene({
           <ConspiracyTv room={room} />
         ) : room.moduleId === "dungeon" ? (
           <DungeonTv room={room} />
+        ) : room.moduleId === "campaign" ? (
+          <CampaignTv room={room} />
         ) : (
           <WhodunnitTv room={room} />
         )}
