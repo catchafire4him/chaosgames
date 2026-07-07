@@ -356,18 +356,21 @@ function LobbyScene({
           ))}
         </div>
         {current && <div className="tv-sub" style={{ fontStyle: "italic" }}>{current.tagline}</div>}
-        <QuickStart moduleId={room.moduleId} />
-        {room.scoreboard.length > 0 && (
-          <div className="scoreboard-panel fade-in">
-            <div className="flyout-title" style={{ fontSize: 16 }}>🏆 Tonight's leaderboard</div>
-            {room.scoreboard.slice(0, 8).map((s, i) => (
-              <div className="stat-row" key={s.playerId} style={{ fontSize: 17 }}>
-                <span>{i === 0 ? "👑" : `${i + 1}.`} {s.name}</span>
-                <span className="stat-value">{s.points} pts</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* side-by-side to keep the lobby on one screen */}
+        <div className="lobby-panels">
+          <QuickStart moduleId={room.moduleId} />
+          {room.scoreboard.length > 0 && (
+            <div className="scoreboard-panel fade-in">
+              <div className="flyout-title" style={{ fontSize: 16 }}>🏆 Tonight's leaderboard</div>
+              {room.scoreboard.slice(0, 8).map((s, i) => (
+                <div className="stat-row" key={s.playerId} style={{ fontSize: 17 }}>
+                  <span>{i === 0 ? "👑" : `${i + 1}.`} {s.name}</span>
+                  <span className="stat-value">{s.points} pts</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="tv-sub" style={{ fontSize: 15 }}>
           pace: {room.settings.pace}
           {room.moduleId === "dungeon" &&

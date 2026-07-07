@@ -156,7 +156,27 @@ input {
   color: var(--accent);
   text-shadow: 0 2px 12px rgba(0,0,0,0.8);
 }
-.tv-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; padding: 0 40px; min-height: 0; }
+.tv-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* "safe" centering + scroll: centered when content fits; when it overflows,
+     it scrolls from the top instead of clipping the top unreachably (the old
+     justify-content:center + overflow:hidden flexbox trap). */
+  justify-content: safe center;
+  overflow-y: auto;
+  gap: 20px;
+  padding: 8px 40px 20px;
+  min-height: 0;
+}
+/* fallback for engines without "safe": children margins recreate centering
+   without the clipping (auto margins collapse to 0 when content overflows) */
+@supports not (justify-content: safe center) {
+  .tv-main { justify-content: flex-start; }
+  .tv-main > :first-child { margin-top: auto; }
+  .tv-main > :last-child { margin-bottom: auto; }
+}
 .tv-banner {
   font-size: 42px;
   text-align: center;
@@ -230,7 +250,19 @@ input {
   border-radius: 20px;
   padding: 26px 34px;
 }
-.qr-panel img { width: 190px; height: 190px; border-radius: 10px; background: #fff; padding: 8px; }
+.qr-panel img { width: 150px; height: 150px; border-radius: 10px; background: #fff; padding: 6px; }
+
+/* lobby: how-to-play + scoreboard sit side by side to save vertical space */
+.lobby-panels {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 1100px;
+}
+.lobby-panels .quickstart { flex: 1 1 460px; max-width: 620px; }
+.lobby-panels .scoreboard-panel { flex: 0 1 340px; min-width: 300px; }
 .room-code { font-size: 74px; letter-spacing: 0.35em; color: var(--accent); font-weight: bold; }
 
 .scoreboard-panel {
