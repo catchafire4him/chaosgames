@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { PublicRoom } from "@shared/index";
-import { heroPortrait } from "../theme";
+import { heroPortrait, portraitFallback } from "../theme";
 
 interface HeroCard {
   id: string; name: string; avatar: string; connected: boolean; ready: boolean;
@@ -45,7 +45,11 @@ function Roster({ s, phase }: { s: CampaignPublic; phase: string }) {
       <div className="party-grid">
         {s.party.map((h) => (
           <div key={h.id} className={`party-card ${h.ready ? "ready" : "waiting"}`}>
-            <img src={h.cls ? heroPortrait(h.portraitAssetId, h.cls, h.avatar) : "/img/dnd/portraits/barbarian_m.png"} alt="" />
+            <img
+              src={h.cls ? heroPortrait(h.portraitAssetId, h.cls, h.avatar) : "/img/dnd/portraits/barbarian_m.png"}
+              onError={(e) => h.cls && portraitFallback(e, h.cls, h.avatar)}
+              alt=""
+            />
             <div className="pc-name">{h.name}</div>
             {h.ready && h.cls ? (
               <>
@@ -100,7 +104,11 @@ function SceneStage({ s, chapter }: { s: CampaignPublic; chapter: Chapter }) {
       <div className="party-strip">
         {s.party.filter((h) => h.ready).map((h) => (
           <div key={h.id} className="party-mini">
-            <img src={heroPortrait(h.portraitAssetId, h.cls!, h.avatar)} alt="" />
+            <img
+              src={heroPortrait(h.portraitAssetId, h.cls!, h.avatar)}
+              onError={(e) => portraitFallback(e, h.cls!, h.avatar)}
+              alt=""
+            />
             <span>{h.name}</span>
           </div>
         ))}
@@ -159,7 +167,11 @@ function EnemyToken({ e }: { e: CombatEnemy }) {
 function HeroToken({ h, active }: { h: CombatHero; active: boolean }) {
   return (
     <div className={`token hero ${active ? "active" : ""} ${h.downed ? "downed" : ""}`}>
-      <img src={heroPortrait(h.portraitAssetId, h.cls, h.avatar)} alt="" />
+      <img
+        src={heroPortrait(h.portraitAssetId, h.cls, h.avatar)}
+        onError={(e) => portraitFallback(e, h.cls, h.avatar)}
+        alt=""
+      />
       <div className="token-name">{h.name}{h.defending ? " 🛡" : ""}</div>
       <Bar hp={h.hp} maxHp={h.maxHp} kind="hero" />
     </div>

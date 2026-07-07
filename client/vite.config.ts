@@ -15,6 +15,10 @@ export default defineConfig({
         target: "ws://localhost:4321",
         ws: true,
       },
+      // generated art (campaign portraits/scenes) is served by the game server
+      "/asset": {
+        target: "http://localhost:4321",
+      },
     },
   },
 });

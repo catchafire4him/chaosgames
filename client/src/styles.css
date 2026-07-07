@@ -378,17 +378,42 @@ input {
   outline: none;
 }
 
+/* Default track + knob for any theme without its own overrides (campaign,
+   neutral, future modes) — thin accent line with a round accent bead, same
+   family as the conspiracy/whodunnit panels. Themed rules later in this file
+   win the cascade. */
+.audio-panel input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.audio-panel input[type="range"]::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
 .audio-panel input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none !important;
   appearance: none !important;
   border: none;
-  border-radius: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55) 0%, var(--accent) 45%, var(--accent-ink) 130%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.55);
+  margin-top: -9px; /* center on the 3px track */
 }
 
 .audio-panel input[type="range"]::-moz-range-thumb {
   border: none;
-  border-radius: 0;
-  background: transparent;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55) 0%, var(--accent) 45%, var(--accent-ink) 130%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.55);
 }
 
 .audio-panel .reset-speed-btn {

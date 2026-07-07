@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { PublicPlayer, PublicRoom } from "@shared/index";
 import type { Send } from "../pages/Play";
-import { campaignPortrait, heroPortrait } from "../theme";
+import { campaignPortrait, heroPortrait, portraitFallback } from "../theme";
 
 /** shapes mirror server/src/modules/campaign privateState */
 interface Ability { id: string; label: string; cd: number; desc: string; ready?: boolean }
@@ -223,7 +223,11 @@ function ChipRow({ options, value, onPick }: { options: string[]; value: string;
 function MiniSheet({ hero, avatar }: { hero: Hero; avatar: string }) {
   return (
     <div className="mini-sheet">
-      <img src={heroPortrait(hero.portraitAssetId, hero.cls, avatar)} alt="" />
+      <img
+        src={heroPortrait(hero.portraitAssetId, hero.cls, avatar)}
+        onError={(e) => portraitFallback(e, hero.cls, avatar)}
+        alt=""
+      />
       <div className="hp-bar">
         <div className="hp-fill" style={{ width: `${Math.round((hero.hp / hero.maxHp) * 100)}%` }} />
         <span>{hero.hp}/{hero.maxHp} HP · lvl {hero.level}</span>
@@ -242,7 +246,11 @@ function Sheet({ hero, avatar, note }: { hero: Hero; avatar: string; note?: stri
     <div className="hero-sheet">
       {note && <p className="phone-hint">{note}</p>}
       <div className="sheet-head">
-        <img src={heroPortrait(hero.portraitAssetId, hero.cls, avatar)} alt="" />
+        <img
+          src={heroPortrait(hero.portraitAssetId, hero.cls, avatar)}
+          onError={(e) => portraitFallback(e, hero.cls, avatar)}
+          alt=""
+        />
         <div>
           <div className="sheet-name">{hero.name}</div>
           <div className="sheet-sub">{hero.quirks.adjective} {hero.cls} · lvl {hero.level}</div>

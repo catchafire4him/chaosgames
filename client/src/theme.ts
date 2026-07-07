@@ -137,3 +137,10 @@ export function campaignPortrait(cls: string, avatar: string): string {
 export function heroPortrait(portraitAssetId: string | null | undefined, cls: string, avatar: string): string {
   return portraitAssetId ? `/asset/${portraitAssetId}` : campaignPortrait(cls, avatar);
 }
+
+/** img onError handler: a generated /asset portrait that fails to load swaps
+ *  to the stock class art instead of showing a broken image. */
+export function portraitFallback(e: { currentTarget: HTMLImageElement }, cls: string, avatar: string): void {
+  const stock = campaignPortrait(cls, avatar);
+  if (!e.currentTarget.src.endsWith(stock)) e.currentTarget.src = stock;
+}
