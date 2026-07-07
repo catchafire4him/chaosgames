@@ -20,6 +20,8 @@ export type HostCommand =
   | "kick_player"
   /** add 30s to the current phase timer */
   | "extend_timer"
+  /** rescue valve: skip narration AND expire the current phase timer now */
+  | "force_advance"
   /** lobby only: change a gameplay setting */
   | "set_setting";
 

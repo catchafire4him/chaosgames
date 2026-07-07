@@ -354,6 +354,12 @@ function HostPanel({ room, send }: { room: PublicRoom; send: Send }) {
                 ⏳ +30 seconds
               </button>
               <button
+                title="stuck? finish the narration and expire the phase timer now"
+                onClick={() => host({ command: "force_advance" })}
+              >
+                ⏩ Force next phase
+              </button>
+              <button
                 className={confirmEnd ? "danger" : ""}
                 onClick={() => {
                   if (confirmEnd) {

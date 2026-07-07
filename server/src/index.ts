@@ -207,6 +207,22 @@ function runHostCommand(
     case "extend_timer":
       room.extendTimer();
       return null;
+    case "force_advance": {
+      // Rescue valve for a stalled game: finish any narration on stage (which
+      // runs its story continuation), and if a phase timer is running, expire
+      // it right now so the module advances.
+      if (!room.started) return null;
+      console.log(`[room:${room.code}] host force-advance (phase=${room.phase})`);
+      room.sendTv({ type: "narration_clear", hard: true });
+      room.pending?.skip();
+      if (room.timer) {
+        const label = room.timer.label;
+        room.clearTimer();
+        room.module.onTimer(room, label);
+        room.broadcast();
+      }
+      return null;
+    }
     case "switch_module": {
       if (room.started || !msg.moduleId) return null;
       // Campaign rooms are bound to a persisted saga — you can't switch a

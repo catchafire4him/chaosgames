@@ -512,6 +512,12 @@ function GameScene({
         <button onClick={() => send({ type: "tv_command", command: "skip_narration" })}>
           skip ⏭
         </button>
+        <button
+          title="stuck? finish narration and expire the phase timer now"
+          onClick={() => send({ type: "tv_command", command: "force_advance" })}
+        >
+          next ⏩
+        </button>
       </div>
     </div>
   );

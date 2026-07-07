@@ -557,6 +557,7 @@ export const whodunnit: GameModule = {
         player.done = true;
         room.play({
           id: "alibi_react",
+          interject: true, // never steal the stage from a story beat (it would strand the game)
           instruction:
             `The accused, ${player.name} (as ${D(player).character?.name ?? "themselves"}), just gave ` +
             `their alibi, verbatim: "${text}". Read it aloud with maximum skepticism or amusement and ` +
@@ -583,6 +584,7 @@ export const whodunnit: GameModule = {
         room.play({
           id: "counter_accuse_react",
           urgent: true,
+          interject: true, // never steal the stage from a story beat (it would strand the game)
           instruction:
             `SHOCKING TWIST: ${player.name} (as ${D(player).character?.name ?? "themselves"}), on trial for ` +
             `their life, just turned and pointed the finger right back at ${target.name} (as ` +

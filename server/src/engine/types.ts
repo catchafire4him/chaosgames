@@ -33,6 +33,11 @@ export interface Beat {
   instruction: string;
   /** flush any narration still playing before this beat */
   urgent?: boolean;
+  /** a side-comment (ghost last words, ...): if another beat is on stage,
+   *  WAIT for it instead of superseding it — superseding cancels the pending
+   *  beat's after() continuation and can strand the game. Dropped if the
+   *  stage never frees up. */
+  interject?: boolean;
   /** extra tools available to the Director for this beat only */
   tools?: HostTool[];
   /** when set, the Director must also return `data` matching this schema */

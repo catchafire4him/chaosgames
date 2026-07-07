@@ -545,6 +545,7 @@ export const conspiracy: GameModule = {
       D(player).lastWordsUsed = true;
       room.play({
         id: "last_words",
+        interject: true, // never steal the stage from a story beat (it would strand the game)
         instruction:
           `From beyond the grave, ${player.name}'s ghost has left their LAST WORDS, verbatim: "${text}". ` +
           `Read them aloud with theatrical gravity and react in 1-2 lines. Reveal no secrets.`,

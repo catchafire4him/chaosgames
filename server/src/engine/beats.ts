@@ -84,7 +84,21 @@ const MAX_LINES = 8;
 /** generous per-line playback allowance before the safety timeout fires */
 const LINE_TIMEOUT_MS = 20_000;
 
-export async function runBeat(room: Room, beat: Beat): Promise<void> {
+export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void> {
+  // Interjections (ghost last words, ...) must NOT supersede a story beat —
+  // cancelling it would drop its after() continuation and strand the game.
+  // Wait for the stage to free up (up to ~20s), then perform; else drop.
+  if (beat.interject && (room.pending || room.composing)) {
+    if (waited < 20_000) {
+      setTimeout(() => {
+        void runBeat(room, beat, waited + 1000).catch(() => {});
+      }, 1000);
+    } else {
+      console.warn(`[room:${room.code}] interjection "${beat.id}" dropped — stage never freed`);
+    }
+    return;
+  }
+
   // A new beat supersedes any narration still on stage.
   if (room.pending) {
     console.warn(
