@@ -385,8 +385,18 @@ function LobbyScene({
         >
           Begin the game
         </button>
-        {/* Campaign rooms are bound to a persisted saga — no mode switching. */}
-        {room.moduleId !== "campaign" && modules.length > 1 && (
+        {/* Campaign rooms are bound to a persisted saga — no mode switching.
+            Instead, offer the way OUT: the saga is saved under its code. */}
+        {room.moduleId === "campaign" ? (
+          <div className="switcher">
+            <span className="tv-sub" style={{ fontSize: 16 }}>
+              this saga is saved — resume anytime with code <b style={{ color: "var(--accent)" }}>{room.code}</b>
+            </span>
+            <button className="switch-btn" onClick={() => navigate("#/")}>
+              ← Leave to the hub
+            </button>
+          </div>
+        ) : modules.length > 1 && (
           <div className="switcher">
             <span className="tv-sub" style={{ fontSize: 16 }}>or play something else:</span>
             {modules

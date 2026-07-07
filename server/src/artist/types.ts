@@ -29,4 +29,4 @@ export interface Artist {
 
 /** shared per-module style anchors */
 export const CAMPAIGN_ART_STYLE =
-  "Painterly storybook fantasy art, warm torch-lit palette, semi-realistic, cohesive consistent art style, dramatic lighting on a simple dark background.";
+  "Detailed fantasy pixel art, 16-bit retro RPG style, warm torch-lit palette, chunky visible pixels, consistent cohesive game art style, simple dark dungeon background.";
