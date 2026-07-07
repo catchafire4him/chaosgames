@@ -26,6 +26,7 @@ export function Tv({ roomId }: { roomId: string }) {
   const emoteId = useRef(0);
   const [showRecap, setShowRecap] = useState(false);
   const [showMixer, setShowMixer] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
   const [mix, setMix] = useState<Mix>(() => {
     try {
       return { ...DEFAULT_MIX, ...JSON.parse(localStorage.getItem("chaos_mix") ?? "{}") };
@@ -183,9 +184,11 @@ export function Tv({ roomId }: { roomId: string }) {
         <GameScene room={room} send={send} caption={captionText} theme={theme} />
       )}
       <div className="tv-tools">
+        <button title="join / rejoin code" onClick={() => setShowJoin((s) => !s)}>📱</button>
         <button title="what did he say?" onClick={() => setShowRecap((s) => !s)}>📜</button>
         <button title="audio mix" onClick={() => setShowMixer((s) => !s)}>🔊</button>
       </div>
+      {showJoin && <JoinFlyout room={room} />}
       {showMixer && (
         <div className="flyout audio-panel">
           <div className="conspiracy-decor tl"></div>
@@ -415,6 +418,29 @@ function LobbyScene({
         )}
       </div>
       <div className="caption-bar" />
+    </div>
+  );
+}
+
+/** Join/rejoin info, reachable ANY time (mid-game included) — a dropped phone
+ *  can rescan without waiting for the lobby. */
+function JoinFlyout({ room }: { room: PublicRoom }) {
+  const [qr, setQr] = useState<string | null>(null);
+  useEffect(() => {
+    QRCode.toDataURL(room.joinUrl, { margin: 1, width: 240 })
+      .then(setQr)
+      .catch(() => setQr(null));
+  }, [room.joinUrl]);
+  return (
+    <div className="flyout join-flyout">
+      <div className="flyout-title">📱 Join / rejoin</div>
+      {qr && <img src={qr} alt="join QR" style={{ width: 200, height: 200, borderRadius: 8, alignSelf: "center" }} />}
+      <div className="room-code" style={{ fontSize: 34, textAlign: "center" }}>{room.code}</div>
+      <div className="tv-sub" style={{ fontSize: 14, textAlign: "center" }}>
+        {room.joinUrl.replace(/^https?:\/\//, "").split("/#")[0]}
+        <br />
+        dropped off? rejoin with the same name to reclaim your seat
+      </div>
     </div>
   );
 }
