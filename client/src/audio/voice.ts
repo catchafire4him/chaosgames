@@ -10,6 +10,8 @@ interface LineState {
   ok: boolean;
   /** at least one chunk has been scheduled into the audio graph */
   scheduledAny: boolean;
+  /** batched beat: follower caption timers already set for this leader */
+  captionsScheduled?: boolean;
 }
 
 /**
@@ -27,8 +29,12 @@ export class VoiceEngine {
   private queue: LineState[] = [];
   private current: LineState | null = null;
   private nextStartTime = 0;
+  /** ctx time when the current line began (batched-caption scheduling) */
+  private currentStart = 0;
   private activeSources = new Set<AudioBufferSourceNode>();
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** timers advancing follower captions during a batched leader's audio */
+  private captionTimers = new Set<ReturnType<typeof setTimeout>>();
 
   onLineStart: (line: NarrationLine) => void = () => {};
   onLineDone: (id: string) => void = () => {};
@@ -106,6 +112,8 @@ export class VoiceEngine {
         }
       }
       this.activeSources.clear();
+      for (const t of this.captionTimers) clearTimeout(t);
+      this.captionTimers.clear();
       if ("speechSynthesis" in window) speechSynthesis.cancel();
       if (this.ctx) this.nextStartTime = this.ctx.currentTime;
       if (this.current) this.complete(false);
@@ -120,7 +128,10 @@ export class VoiceEngine {
       return;
     }
     this.current = this.queue.shift()!;
-    if (this.ctx) this.nextStartTime = this.ctx.currentTime;
+    if (this.ctx) {
+      this.nextStartTime = this.ctx.currentTime;
+      this.currentStart = this.ctx.currentTime;
+    }
     this.onLineStart(this.current.line);
     this.drain();
     this.checkAdvance();
@@ -160,6 +171,48 @@ export class VoiceEngine {
     this.nextStartTime = startAt + buffer.duration / this.rate;
   }
 
+  /** followers whose audio lives inside this leader's track, in announce order */
+  private followersOf(leaderId: string): LineState[] {
+    return this.queue.filter((s) => s.line.audioFrom === leaderId);
+  }
+
+  /** Batched beat: the leader's audio voices the whole beat. Advance the
+   *  follower captions on a schedule estimated from text length. */
+  private scheduleGroupCaptions(leader: LineState): void {
+    if (!this.ctx || leader.captionsScheduled) return;
+    const followers = this.followersOf(leader.line.id);
+    if (!followers.length) return;
+    leader.captionsScheduled = true;
+    const all = [leader, ...followers];
+    const totalChars = all.reduce((n, s) => n + s.line.text.length, 0) || 1;
+    const totalSec = Math.max(0, this.nextStartTime - this.currentStart);
+    const elapsed = this.ctx.currentTime - this.currentStart;
+    let cum = leader.line.text.length;
+    for (const f of followers) {
+      const atSec = (cum / totalChars) * totalSec;
+      cum += f.line.text.length;
+      const delay = Math.max(0, (atSec - elapsed) * 1000);
+      const t = setTimeout(() => {
+        this.captionTimers.delete(t);
+        if (this.states.has(f.line.id)) this.onLineStart(f.line);
+      }, delay);
+      this.captionTimers.add(t);
+    }
+  }
+
+  /** finish a batched beat: ack + drop the followers riding the leader's audio */
+  private completeGroup(leader: LineState): void {
+    const followers = this.followersOf(leader.line.id);
+    for (const t of this.captionTimers) clearTimeout(t);
+    this.captionTimers.clear();
+    for (const f of followers) {
+      const i = this.queue.indexOf(f);
+      if (i >= 0) this.queue.splice(i, 1);
+      this.states.delete(f.line.id);
+      this.onLineDone(f.line.id);
+    }
+  }
+
   /** decide whether the current line is finished (or how to finish it) */
   private checkAdvance(): void {
     const st = this.current;
@@ -167,18 +220,24 @@ export class VoiceEngine {
     if (st.chunks.length) return; // still buffered audio to schedule
 
     if (st.scheduledAny && this.ctx) {
+      // full audio duration is now known — set the follower caption schedule
+      this.scheduleGroupCaptions(st);
       // wait for the scheduled audio to actually finish playing
       const remainingMs = Math.max(0, (this.nextStartTime - this.ctx.currentTime) * 1000);
       if (this.advanceTimer) clearTimeout(this.advanceTimer);
       this.advanceTimer = setTimeout(() => {
         this.advanceTimer = null;
-        if (this.current === st) this.complete(true);
+        if (this.current === st) {
+          this.completeGroup(st);
+          this.complete(true);
+        }
       }, remainingMs + 80);
       return;
     }
 
     if (!st.ok) {
-      // no audio produced — browser TTS fallback
+      // no audio produced — browser TTS fallback (batched followers arrive
+      // here too, each speaking their own line in order)
       void this.speak(st.line.text).then(() => {
         if (this.current === st) this.complete(true);
       });

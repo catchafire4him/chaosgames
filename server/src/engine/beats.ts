@@ -83,6 +83,9 @@ function sanitizeLine(text: string): string {
 const MAX_LINES = 8;
 /** generous per-line playback allowance before the safety timeout fires */
 const LINE_TIMEOUT_MS = 20_000;
+/** beats with this many lines or more are voiced by ONE TTS request
+ *  (quota relief + a single continuous performance, zero mid-beat drift) */
+const TTS_BATCH_MIN = 3;
 
 export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void> {
   // Interjections (ghost last words, ...) must NOT supersede a story beat —
@@ -217,24 +220,53 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
   };
 
   if (!headless) {
-    // Announce all lines up front (the TV buffers + plays strictly in order),
-    // then STREAM each line's audio as the TTS produces it. Line 2 synthesizes
-    // while line 1 plays — no more slowest-synth-first silence.
-    for (const line of lines) room.sendTv({ type: "narration", line });
-    for (const line of lines) {
+    if (lines.length >= TTS_BATCH_MIN) {
+      // BATCHED: one TTS request voices the whole beat (quota: TTS preview
+      // models allow ~10 req/min, shared across rooms). The full audio streams
+      // under the FIRST line's id; the TV advances the follower captions on an
+      // estimated schedule and keeps one continuous voice performance.
+      const leader = lines[0];
+      for (const line of lines) {
+        room.sendTv({
+          type: "narration",
+          line: line === leader ? line : { ...line, audioFrom: leader.id },
+        });
+      }
+      const fullText = lines.map((l) => l.text).join(" ");
       void room.speaker
         .synth(
-          line.text,
-          line.mood,
-          (pcm) => room.sendTv({ type: "narration_audio", lineId: line.id, pcm }),
+          fullText,
+          leader.mood,
+          (pcm) => room.sendTv({ type: "narration_audio", lineId: leader.id, pcm }),
           room.module.voiceStyle,
         )
-        .then((ok) =>
-          room.sendTv({ type: "narration_audio_end", lineId: line.id, ok }),
-        )
-        .catch(() =>
-          room.sendTv({ type: "narration_audio_end", lineId: line.id, ok: false }),
-        );
+        .then((ok) => {
+          // ok=false → every line falls back to browser TTS individually
+          for (const line of lines) room.sendTv({ type: "narration_audio_end", lineId: line.id, ok });
+        })
+        .catch(() => {
+          for (const line of lines) room.sendTv({ type: "narration_audio_end", lineId: line.id, ok: false });
+        });
+    } else {
+      // PER-LINE (1-2 line beats): announce all lines up front (the TV buffers
+      // + plays strictly in order), then STREAM each line's audio as the TTS
+      // produces it. Line 2 synthesizes while line 1 plays.
+      for (const line of lines) room.sendTv({ type: "narration", line });
+      for (const line of lines) {
+        void room.speaker
+          .synth(
+            line.text,
+            line.mood,
+            (pcm) => room.sendTv({ type: "narration_audio", lineId: line.id, pcm }),
+            room.module.voiceStyle,
+          )
+          .then((ok) =>
+            room.sendTv({ type: "narration_audio_end", lineId: line.id, ok }),
+          )
+          .catch(() =>
+            room.sendTv({ type: "narration_audio_end", lineId: line.id, ok: false }),
+          );
+      }
     }
   }
   room.broadcast();

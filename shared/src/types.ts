@@ -106,4 +106,8 @@ export interface NarrationLine {
   text: string;
   /** delivery hint, e.g. "eerie", "gleeful", "ominous", "deadpan" */
   mood?: string;
+  /** TTS batching: this line's audio lives inside another line's audio track
+   *  (one synth call per beat). The TV advances this caption on an estimated
+   *  schedule while the leader's audio plays. */
+  audioFrom?: string;
 }
