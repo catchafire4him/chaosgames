@@ -380,22 +380,24 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
           return;
         }
       }
+      // seat transfer: a disconnected phone can reclaim its seat by rejoining
+      // with the same name from any device (both in lobby and active game)
+      const seat = [...room.players.values()].find(
+        (p) => !p.connected && p.name.toLowerCase() === msg.name.trim().toLowerCase(),
+      );
+      if (seat) {
+        seat.connected = true;
+        if (playerKey) seat.playerKey = playerKey;
+        seat.sockets.add(ws);
+        ctx.room = room;
+        ctx.role = "player";
+        ctx.playerId = seat.id;
+        send(ws, { type: "joined_player", roomId: room.id, playerId: seat.id });
+        room.broadcast();
+        return;
+      }
+
       if (room.started) {
-        // seat transfer: a dead phone can be replaced by rejoining with the
-        // same name from any device
-        const seat = [...room.players.values()].find(
-          (p) => !p.connected && p.name.toLowerCase() === msg.name.trim().toLowerCase(),
-        );
-        if (seat) {
-          seat.connected = true;
-          seat.sockets.add(ws);
-          ctx.room = room;
-          ctx.role = "player";
-          ctx.playerId = seat.id;
-          send(ws, { type: "joined_player", roomId: room.id, playerId: seat.id });
-          room.broadcast();
-          return;
-        }
         send(ws, {
           type: "error",
           message:
