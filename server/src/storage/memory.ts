@@ -6,6 +6,7 @@ import {
   type CampaignRow,
   type CharacterRow,
   type PlayerRow,
+  type PlayerStats,
   type SnapshotRow,
   type Storage,
 } from "./types.js";
@@ -18,7 +19,8 @@ import {
  */
 export class MemoryStorage implements Storage {
   readonly kind = "memory";
-  private players = new Map<string, PlayerRow>();
+  private players = new Map<string, PlayerRow & { accountId?: string | null }>();
+  private stats = new Map<string, PlayerStats>();
   private campaigns = new Map<string, CampaignRow>();
   private byCode = new Map<string, string>();
   private characters = new Map<string, CharacterRow>(); // key: `${campaignId}:${playerKey}`
@@ -37,6 +39,24 @@ export class MemoryStorage implements Storage {
       p.displayName = displayName;
     }
     return { ...p };
+  }
+
+  async linkAccount(playerKey: string, accountId: string): Promise<void> {
+    const p = this.players.get(playerKey);
+    if (p) p.accountId = accountId;
+  }
+
+  async recordGameResult(playerKey: string, result: { won: boolean; points: number }): Promise<void> {
+    const s = this.stats.get(playerKey) ?? { games: 0, wins: 0, points: 0 };
+    s.games += 1;
+    if (result.won) s.wins += 1;
+    s.points += result.points;
+    this.stats.set(playerKey, s);
+  }
+
+  async getStats(playerKey: string): Promise<PlayerStats | null> {
+    const s = this.stats.get(playerKey);
+    return s ? { ...s } : null;
   }
 
   async createCampaign(input: { joinCode: string; name: string; settings?: Record<string, unknown> }): Promise<CampaignRow> {

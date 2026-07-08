@@ -44,6 +44,9 @@ export type ClientMessage =
       playerId?: string;
       /** device identity (localStorage UUID) — persists heroes/seat across sessions */
       playerKey?: string;
+      /** optional Neon Auth JWT — links this device's player_key to an account.
+       *  Guests omit it; an invalid token is silently ignored (guest behavior). */
+      authToken?: string;
     }
   | { type: "action"; action: PlayerAction }
   | {
@@ -72,7 +75,18 @@ export type ServerMessage =
   | { type: "modules"; modules: ModuleInfo[] }
   | { type: "room_created"; roomId: string; code: string }
   | { type: "joined_tv"; roomId: string }
-  | { type: "joined_player"; roomId: string; playerId: string }
+  | {
+      type: "joined_player";
+      roomId: string;
+      playerId: string;
+      /** present when logged in and/or when this device has career stats.
+       *  name/email echo the account ("logged in as"); stats work for guests too. */
+      account?: {
+        name?: string;
+        email?: string;
+        stats?: { games: number; wins: number; points: number };
+      };
+    }
   | { type: "room_state"; room: PublicRoom; you?: unknown }
   /** Announce a host line; its audio streams separately (TV only) */
   | { type: "narration"; line: NarrationLine }

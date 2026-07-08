@@ -422,10 +422,18 @@ export class Room {
     this.winners = winnerNames;
     this.gamesPlayed++;
     // scoring: +1 for everyone who played, +3 bonus for each name in winnerNames
-    for (const p of this.players.values()) this.awardPoints(p.id, 1);
-    for (const name of winnerNames) {
-      const winner = [...this.players.values()].find((p) => p.name === name);
-      if (winner) this.awardPoints(winner.id, 3);
+    const won = new Set(winnerNames);
+    for (const p of this.players.values()) {
+      this.awardPoints(p.id, 1);
+      const isWinner = won.has(p.name);
+      if (isWinner) this.awardPoints(p.id, 3);
+      // Career stats (optional accounts): fire-and-forget, keyed on player_key.
+      // Same +1/+3 numbers as the scoreboard. Never blocks or throws into flow.
+      if (p.playerKey && this.storage) {
+        void this.storage
+          .recordGameResult(p.playerKey, { won: isWinner, points: isWinner ? 3 : 1 })
+          .catch((err) => console.warn(`[stats] recordGameResult failed:`, (err as Error).message));
+      }
     }
     this.nightLog.push(
       `Game ${this.gamesPlayed} — ${this.module.name}: ` +

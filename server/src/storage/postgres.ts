@@ -8,6 +8,7 @@ import {
   type CampaignRow,
   type CharacterRow,
   type PlayerRow,
+  type PlayerStats,
   type SnapshotRow,
   type Storage,
 } from "./types.js";
@@ -49,6 +50,32 @@ export class PostgresStorage implements Storage {
       [playerKey, displayName ?? null],
     );
     return mapPlayer(rows[0]);
+  }
+
+  async linkAccount(playerKey: string, accountId: string): Promise<void> {
+    await this.pool.query(`UPDATE players SET account_id = $2 WHERE player_key = $1`, [playerKey, accountId]);
+  }
+
+  async recordGameResult(playerKey: string, result: { won: boolean; points: number }): Promise<void> {
+    const won = result.won ? 1 : 0;
+    await this.pool.query(
+      `INSERT INTO player_stats (player_key, games, wins, points, updated_at)
+       VALUES ($1, 1, $2, $3, now())
+       ON CONFLICT (player_key) DO UPDATE SET
+         games = player_stats.games + 1,
+         wins = player_stats.wins + $2,
+         points = player_stats.points + $3,
+         updated_at = now()`,
+      [playerKey, won, result.points],
+    );
+  }
+
+  async getStats(playerKey: string): Promise<PlayerStats | null> {
+    const { rows } = await this.pool.query(
+      `SELECT games, wins, points FROM player_stats WHERE player_key = $1`,
+      [playerKey],
+    );
+    return rows[0] ? { games: rows[0].games, wins: rows[0].wins, points: rows[0].points } : null;
   }
 
   async createCampaign(input: { joinCode: string; name: string; settings?: Record<string, unknown> }): Promise<CampaignRow> {

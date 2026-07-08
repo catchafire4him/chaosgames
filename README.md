@@ -23,7 +23,17 @@ PORT=4321
 # GEMINI_MODEL=gemini-3.1-flash-lite            # director brain (default)
 # GEMINI_TTS_MODEL=gemini-3.1-flash-tts-preview # host voice (default)
 # GEMINI_TTS_VOICE=Charon
+# DATABASE_URL=postgres://...   # Neon; enables campaign persistence + career stats
+# NEON_AUTH_URL=https://ep-xxx.neonauth.<cluster>.<region>.aws.neon.tech/neondb/auth
+#   ^ optional player accounts (Neon Auth). Has a built-in default; override to
+#     point at a different project. Must match the client's VITE_NEON_AUTH_URL.
 ```
+
+Optional player accounts are OFF the critical path — login only ever *adds*; the
+default is always "continue as guest". The client reads `VITE_NEON_AUTH_URL`
+(`client/.env`, see `client/.env.example`); both it and the server's
+`NEON_AUTH_URL` default to this project's Neon Auth URL, so nothing extra is
+needed for dev.
 Both adapters try a fallback chain of models, so a retired preview model
 degrades gracefully instead of killing the host.
 Without a key the game still fully works: canned narration + browser

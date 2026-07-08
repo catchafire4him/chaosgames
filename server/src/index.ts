@@ -22,6 +22,7 @@ import { RoomManager } from "./roomManager.js";
 import { createStorage } from "./storage/index.js";
 import { createArtist } from "./artist/index.js";
 import { attachHero } from "./modules/campaign/index.js";
+import { verifyAuthToken } from "./auth.js";
 
 // GAME_PORT wins over PORT so dev tooling that injects PORT (preview panels,
 // vite wrappers) can't collide with the game server. Railway still sets PORT.
@@ -338,88 +339,13 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
       return;
     }
 
-    case "join_player": {
-      const room = rooms.find(msg.room);
-      if (!room) {
-        send(ws, { type: "error", message: "Room not found — check the code." });
-        return;
-      }
-      const playerKey = typeof msg.playerKey === "string" ? msg.playerKey : null;
-      // record the identity (Campaign persistence / future accounts). Fire and
-      // forget: the players row only needs to exist before the forge persists.
-      if (playerKey && room.storage) {
-        void room.storage.getOrCreatePlayer(playerKey, msg.name).catch(() => {});
-      }
-
-      // Rejoin (refresh / reconnect) with a remembered playerId
-      const existing = msg.playerId ? room.players.get(msg.playerId) : undefined;
-      if (existing) {
-        existing.connected = true;
-        if (playerKey) existing.playerKey = playerKey;
-        existing.sockets.add(ws);
-        ctx.room = room;
-        ctx.role = "player";
-        ctx.playerId = existing.id;
-        send(ws, { type: "joined_player", roomId: room.id, playerId: existing.id });
-        room.broadcast();
-        return;
-      }
-
-      // Campaign: reclaim a seat by device key (fresh browser, no playerId) —
-      // your hero follows your player_key across sessions.
-      if (playerKey && room.campaignId) {
-        const byKey = [...room.players.values()].find((p) => p.playerKey === playerKey);
-        if (byKey) {
-          byKey.connected = true;
-          byKey.sockets.add(ws);
-          ctx.room = room;
-          ctx.role = "player";
-          ctx.playerId = byKey.id;
-          send(ws, { type: "joined_player", roomId: room.id, playerId: byKey.id });
-          room.broadcast();
-          return;
-        }
-      }
-      // seat transfer: a disconnected phone can reclaim its seat by rejoining
-      // with the same name from any device (both in lobby and active game)
-      const seat = [...room.players.values()].find(
-        (p) => !p.connected && p.name.toLowerCase() === msg.name.trim().toLowerCase(),
-      );
-      if (seat) {
-        seat.connected = true;
-        if (playerKey) seat.playerKey = playerKey;
-        seat.sockets.add(ws);
-        ctx.room = room;
-        ctx.role = "player";
-        ctx.playerId = seat.id;
-        send(ws, { type: "joined_player", roomId: room.id, playerId: seat.id });
-        room.broadcast();
-        return;
-      }
-
-      if (room.started) {
-        send(ws, {
-          type: "error",
-          message:
-            "That game already started. (Replacing someone? Join with their exact name once their phone is offline.)",
-        });
-        return;
-      }
-      if (room.players.size >= room.module.maxPlayers) {
-        send(ws, { type: "error", message: "Room is full." });
-        return;
-      }
-      const player = room.addPlayer(msg.name, playerKey);
-      player.sockets.add(ws);
-      // Campaign: if this device already has a hero in this campaign, reattach it
-      if (room.campaignId) attachHero(room, player);
-      ctx.room = room;
-      ctx.role = "player";
-      ctx.playerId = player.id;
-      send(ws, { type: "joined_player", roomId: room.id, playerId: player.id });
-      room.broadcast();
+    case "join_player":
+      // async (token verify + storage); errors fail open to guest behavior
+      void handleJoinPlayer(ws, ctx, msg).catch((err) => {
+        console.error("[ws] join_player error:", err);
+        send(ws, { type: "error", message: "Couldn't join — try again." });
+      });
       return;
-    }
 
     case "action": {
       const { room, playerId } = ctx;
@@ -476,6 +402,129 @@ function handle(ws: WebSocket, ctx: ConnCtx, msg: ClientMessage): void {
       return;
     }
   }
+}
+
+/** Account annotation returned to the phone on join (optional accounts). */
+type JoinedAccount = Extract<ServerMessage, { type: "joined_player" }>["account"];
+
+/**
+ * Resolve the optional account for a join: verify the Neon Auth token (fail
+ * open), ensure the players row exists, LINK it to the account, and read career
+ * stats. Every step is guarded — a storage/auth failure yields guest behavior,
+ * never a thrown join.
+ */
+async function resolveAccount(
+  room: Room,
+  msg: Extract<ClientMessage, { type: "join_player" }>,
+  playerKey: string | null,
+): Promise<JoinedAccount> {
+  let accountId: string | null = null;
+  let name: string | undefined;
+  let email: string | undefined;
+  if (msg.authToken) {
+    const acct = await verifyAuthToken(msg.authToken);
+    if (acct) {
+      accountId = acct.accountId;
+      name = acct.name;
+      email = acct.email;
+    }
+  }
+  let stats: { games: number; wins: number; points: number } | undefined;
+  if (playerKey && room.storage) {
+    try {
+      // players row must exist before we link / persist heroes against it
+      await room.storage.getOrCreatePlayer(playerKey, msg.name);
+      if (accountId) await room.storage.linkAccount(playerKey, accountId);
+      stats = (await room.storage.getStats(playerKey)) ?? undefined;
+    } catch (err) {
+      console.warn("[auth] account/stats persistence failed (continuing as guest):", (err as Error).message);
+    }
+  }
+  if (!name && !email && !stats) return undefined;
+  return { name, email, stats };
+}
+
+async function handleJoinPlayer(
+  ws: WebSocket,
+  ctx: ConnCtx,
+  msg: Extract<ClientMessage, { type: "join_player" }>,
+): Promise<void> {
+  const room = rooms.find(msg.room);
+  if (!room) {
+    send(ws, { type: "error", message: "Room not found — check the code." });
+    return;
+  }
+  const playerKey = typeof msg.playerKey === "string" ? msg.playerKey : null;
+  // Optional accounts: verify token, link the device key, read career stats.
+  const account = await resolveAccount(room, msg, playerKey);
+
+  // Rejoin (refresh / reconnect) with a remembered playerId
+  const existing = msg.playerId ? room.players.get(msg.playerId) : undefined;
+  if (existing) {
+    existing.connected = true;
+    if (playerKey) existing.playerKey = playerKey;
+    existing.sockets.add(ws);
+    ctx.room = room;
+    ctx.role = "player";
+    ctx.playerId = existing.id;
+    send(ws, { type: "joined_player", roomId: room.id, playerId: existing.id, account });
+    room.broadcast();
+    return;
+  }
+
+  // Campaign: reclaim a seat by device key (fresh browser, no playerId) —
+  // your hero follows your player_key across sessions.
+  if (playerKey && room.campaignId) {
+    const byKey = [...room.players.values()].find((p) => p.playerKey === playerKey);
+    if (byKey) {
+      byKey.connected = true;
+      byKey.sockets.add(ws);
+      ctx.room = room;
+      ctx.role = "player";
+      ctx.playerId = byKey.id;
+      send(ws, { type: "joined_player", roomId: room.id, playerId: byKey.id, account });
+      room.broadcast();
+      return;
+    }
+  }
+  // seat transfer: a disconnected phone can reclaim its seat by rejoining
+  // with the same name from any device (both in lobby and active game)
+  const seat = [...room.players.values()].find(
+    (p) => !p.connected && p.name.toLowerCase() === msg.name.trim().toLowerCase(),
+  );
+  if (seat) {
+    seat.connected = true;
+    if (playerKey) seat.playerKey = playerKey;
+    seat.sockets.add(ws);
+    ctx.room = room;
+    ctx.role = "player";
+    ctx.playerId = seat.id;
+    send(ws, { type: "joined_player", roomId: room.id, playerId: seat.id, account });
+    room.broadcast();
+    return;
+  }
+
+  if (room.started) {
+    send(ws, {
+      type: "error",
+      message:
+        "That game already started. (Replacing someone? Join with their exact name once their phone is offline.)",
+    });
+    return;
+  }
+  if (room.players.size >= room.module.maxPlayers) {
+    send(ws, { type: "error", message: "Room is full." });
+    return;
+  }
+  const player = room.addPlayer(msg.name, playerKey);
+  player.sockets.add(ws);
+  // Campaign: if this device already has a hero in this campaign, reattach it
+  if (room.campaignId) attachHero(room, player);
+  ctx.room = room;
+  ctx.role = "player";
+  ctx.playerId = player.id;
+  send(ws, { type: "joined_player", roomId: room.id, playerId: player.id, account });
+  room.broadcast();
 }
 
 httpServer.listen(PORT, () => {

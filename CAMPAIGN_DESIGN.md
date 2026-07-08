@@ -571,6 +571,48 @@ cost saver second.
 > built, what was verified and how, and what's next. Task list in the
 > session tracker mirrors the phases.
 
+- **2026-07-08** — OPTIONAL ACCOUNTS — APP-WIDE (§5.3), branch `auth`. Login is
+  optional in EVERY mode; guest "continue" stays the one-tap default and login
+  only ADDS. Runtime identity remains the device `player_key`; logging in LINKS
+  that key to a Neon Auth account (never keyed on display name; name stays
+  editable each session, prefilled from the account).
+  **Provider:** Neon Auth = Better Auth flavor, already provisioned on project
+  `jolly-hall-24115322`. Verified the live integration surface by HTTP before
+  wiring: the auth base URL is
+  `https://ep-steep-rain-ajbos5tl.neonauth.c-3.us-east-2.aws.neon.tech/neondb/auth`
+  (note the `c-3` cluster segment — it matches the pooler host; the region-only
+  host 404s). JWKS at `${base}/.well-known/jwks.json` (EdDSA); token issuer =
+  base origin; `sub` = account id. Full round-trip confirmed:
+  `/sign-up/email` → `/token` → `jose.jwtVerify` → accountId.
+  **Storage (additive):** `schema.sql` gains `ALTER players ADD COLUMN IF NOT
+  EXISTS account_id uuid` + a `player_stats(player_key PK → players, games,
+  wins, points, updated_at)` table (kept idempotent; migrate.mjs re-verified on
+  the real DB). `Storage` grew `linkAccount`, `recordGameResult`, `getStats`,
+  implemented on BOTH backends.
+  **Server:** new `server/src/auth.ts` — `verifyAuthToken(token)` verifies via
+  `jose.createRemoteJWKSet` (cached), FAILS CLOSED to null, never throws into
+  the join flow. `join_player` gained optional `authToken`; on a valid token +
+  playerKey it links the account and reads career stats. `joined_player` gained
+  optional `account { name?, email?, stats? }`. `Room.endGame` fires
+  `recordGameResult` per player with a playerKey (fire-and-forget, same +1/+3
+  numbers as the scoreboard). Every auth/storage path fails open to guest.
+  **Client:** new `client/src/net/auth.ts` (Better Auth `createAuthClient`;
+  `getAuthToken()` pulls a JWT from `/token`). `Play.tsx` name screen shows a
+  collapsed "have an account?" panel (email+password sign in/up + one-tap Google
+  redirect) below the untouched guest flow; when signed in it prefills the
+  (still-editable) name, shows "signed in as {email} · sign out", and sends the
+  token with join. Lobby shows "🏅 career: X pts · Y wins in Z games" when
+  stats are present. Token is captured once at join time so it never churns the
+  socket; guests never call the network.
+  **Env vars:** server `NEON_AUTH_URL` (optional; built-in default), client
+  `VITE_NEON_AUTH_URL` (optional; built-in default, see `client/.env.example`).
+  For a production domain, add it to Neon Console → Auth → trusted origins
+  (localhost is already allowed). Set both on Railway if overriding the default
+  project. **Verified:** `typecheck` (server+client) clean; `npm run sim` all
+  green on memory; storage round-trip PASS on memory AND real Neon (throwaway
+  script, deleted); live `/sign-up` → `/token` → `verifyAuthToken` returned the
+  accountId; client `vite build` clean; server boots `storage=postgres`, health
+  200. Deferred: browser UI pass left to reviewer (per task).
 - **2026-07-03** — Design complete (this doc). Decisions locked: own
   module, zones-now/grid-later, multi-session chapters, middle crunch,
   Neon DB now, Artist adapter + tagged asset library. Open questions in §8

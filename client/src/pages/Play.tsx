@@ -9,8 +9,12 @@ import { WhodunnitPhone } from "../phone/WhodunnitPhone";
 import { DungeonPhone } from "../phone/DungeonPhone";
 import { CampaignPhone } from "../phone/CampaignPhone";
 import { playerKey } from "../net/playerKey";
+import { useSession, signIn, signUp, signOut, getAuthToken } from "../net/auth";
 
 export type Send = (msg: ClientMessage) => void;
+
+/** career stats echoed back on join (optional accounts; guests get it too) */
+type Account = { name?: string; email?: string; stats?: { games: number; wins: number; points: number } };
 
 export function Play({ code }: { code: string }) {
   const storageKey = `chaos_${code}`;
@@ -27,6 +31,10 @@ export function Play({ code }: { code: string }) {
   // localStorage inside the memo captured `undefined` on first join and never
   // updated, so every lobby reconnect created a brand-new player.)
   const [playerId, setPlayerId] = useState<string | null>(() => localStorage.getItem(storageKey));
+  // Optional accounts: JWT captured once at join time (stable, so it doesn't
+  // churn the socket). null = guest. Account echo drives the "career" line.
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [account, setAccount] = useState<Account | null>(null);
 
   const join = useMemo(() => {
     if (!joinedName) return null;
@@ -36,14 +44,16 @@ export function Play({ code }: { code: string }) {
       name: joinedName,
       playerId: playerId ?? undefined,
       playerKey: playerKey(),
+      authToken: authToken ?? undefined,
     };
-  }, [code, joinedName, playerId]);
+  }, [code, joinedName, playerId, authToken]);
 
   const { send, connected } = useSocket(join, (msg) => {
     switch (msg.type) {
       case "joined_player":
         localStorage.setItem(storageKey, msg.playerId);
         setPlayerId(msg.playerId);
+        if (msg.account) setAccount(msg.account);
         setError(null);
         break;
       case "room_state":
@@ -66,6 +76,16 @@ export function Play({ code }: { code: string }) {
   });
 
   useWakeLock(!!room);
+
+  const { data: session } = useSession();
+
+  // Guests join instantly (one tap). Only signed-in players pay for a token
+  // fetch — and even that fails soft (null → server treats them as a guest).
+  const commitJoin = async (finalName: string) => {
+    localStorage.setItem(`${storageKey}_name`, finalName);
+    if (session?.user) setAuthToken(await getAuthToken());
+    setJoinedName(finalName);
+  };
 
   const roomGone = !!error && error.toLowerCase().includes("not found");
 
@@ -95,22 +115,19 @@ export function Play({ code }: { code: string }) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && name.trim()) {
-                    localStorage.setItem(`${storageKey}_name`, name.trim());
-                    setJoinedName(name.trim());
-                  }
+                  if (e.key === "Enter" && name.trim()) commitJoin(name.trim());
                 }}
               />
               <button
                 className="primary"
                 disabled={!name.trim()}
-                onClick={() => {
-                  localStorage.setItem(`${storageKey}_name`, name.trim());
-                  setJoinedName(name.trim());
-                }}
+                onClick={() => commitJoin(name.trim())}
               >
                 Join the game
               </button>
+              <AccountPanel
+                onPrefillName={(n) => setName((prev) => prev || n)}
+              />
             </>
           )}
         </div>
@@ -169,6 +186,13 @@ export function Play({ code }: { code: string }) {
               Watch the big screen — the host will start the game.
               <br />({room.players.length} player{room.players.length === 1 ? "" : "s"} in the room)
             </p>
+            {account?.stats && account.stats.games > 0 && (
+              <p className="phone-hint" style={{ opacity: 0.8 }}>
+                🏅 career: {account.stats.points} pts · {account.stats.wins} win
+                {account.stats.wins === 1 ? "" : "s"} in {account.stats.games} game
+                {account.stats.games === 1 ? "" : "s"}
+              </p>
+            )}
           </>
         )}
         {room && room.phase !== "lobby" && me && (
@@ -376,6 +400,135 @@ function HostPanel({ room, send }: { room: PublicRoom; send: Send }) {
         </div>
       )}
     </>
+  );
+}
+
+// ─── Optional accounts (collapsed under the guest flow; never adds friction) ──
+
+function AccountPanel({ onPrefillName }: { onPrefillName: (name: string) => void }) {
+  const { data: session } = useSession();
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"in" | "up">("in");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // prefill the name field from the account (still editable — changing your
+  // name each session is a feature, not a bug)
+  useEffect(() => {
+    if (session?.user?.name) onPrefillName(session.user.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.name]);
+
+  if (session?.user) {
+    return (
+      <p className="phone-hint" style={{ marginTop: 12 }}>
+        Signed in as <b style={{ color: "var(--accent)" }}>{session.user.email}</b>
+        {" · "}
+        <button
+          onClick={() => signOut()}
+          style={{
+            background: "none", border: "none", padding: 0,
+            color: "var(--accent)", textDecoration: "underline",
+            font: "inherit", cursor: "pointer", width: "auto",
+          }}
+        >
+          sign out
+        </button>
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          background: "none", border: "none", marginTop: 12,
+          color: "var(--fg-dim, #888)", textDecoration: "underline",
+          font: "inherit", cursor: "pointer",
+        }}
+      >
+        have an account? sign in
+      </button>
+    );
+  }
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res: any =
+        mode === "in"
+          ? await signIn.email({ email: email.trim(), password })
+          : await signUp.email({
+              email: email.trim(),
+              password,
+              name: displayName.trim() || email.split("@")[0],
+            });
+      if (res?.error) setErr(res.error.message ?? "Something went wrong.");
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="seg-row">
+        <button className={mode === "in" ? "primary" : ""} onClick={() => setMode("in")}>
+          sign in
+        </button>
+        <button className={mode === "up" ? "primary" : ""} onClick={() => setMode("up")}>
+          sign up
+        </button>
+      </div>
+      {err && <div className="error-banner">{err}</div>}
+      <input
+        placeholder="email"
+        type="email"
+        autoComplete="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <input
+        placeholder="password"
+        type="password"
+        autoComplete={mode === "in" ? "current-password" : "new-password"}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      {mode === "up" && (
+        <input
+          placeholder="display name (optional)"
+          maxLength={24}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+        />
+      )}
+      <button
+        className="primary"
+        disabled={busy || !email.trim() || !password}
+        onClick={submit}
+      >
+        {busy ? "…" : mode === "in" ? "Sign in" : "Create account"}
+      </button>
+      <button onClick={() => signIn.social({ provider: "google", callbackURL: location.href })}>
+        Continue with Google
+      </button>
+      <button
+        onClick={() => setOpen(false)}
+        style={{
+          background: "none", border: "none",
+          color: "var(--fg-dim, #888)", font: "inherit", cursor: "pointer",
+        }}
+      >
+        cancel
+      </button>
+    </div>
   );
 }
 

@@ -13,6 +13,20 @@ CREATE TABLE IF NOT EXISTS players (
   last_seen_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Optional accounts (Neon Auth): a player_key may be LINKED to an account.
+-- Additive + idempotent for existing DBs. Identity stays the player_key; an
+-- account_id only annotates which login owns this device. NEVER keyed on name.
+ALTER TABLE players ADD COLUMN IF NOT EXISTS account_id uuid;
+
+-- Career stats, keyed on the device player_key (works for guests too).
+CREATE TABLE IF NOT EXISTS player_stats (
+  player_key uuid PRIMARY KEY REFERENCES players(player_key) ON DELETE CASCADE,
+  games int NOT NULL DEFAULT 0,
+  wins int NOT NULL DEFAULT 0,
+  points int NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS campaigns (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   join_code text UNIQUE NOT NULL,

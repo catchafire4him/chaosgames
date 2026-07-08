@@ -15,6 +15,13 @@ export interface PlayerRow {
   createdAt: string;
 }
 
+/** Career stats, keyed on the device player_key (guests included). */
+export interface PlayerStats {
+  games: number;
+  wins: number;
+  points: number;
+}
+
 export interface CampaignRow {
   id: string;
   joinCode: string;
@@ -99,6 +106,14 @@ export interface Storage {
 
   // ── players ──
   getOrCreatePlayer(playerKey: string, displayName?: string): Promise<PlayerRow>;
+  /** Link a device player_key to an authenticated account. Additive; identity
+   *  stays the player_key. Safe to call repeatedly (idempotent per key). */
+  linkAccount(playerKey: string, accountId: string): Promise<void>;
+
+  // ── career stats (keyed on player_key) ──
+  /** Fold one finished game into the player's running stats (games+1 always). */
+  recordGameResult(playerKey: string, result: { won: boolean; points: number }): Promise<void>;
+  getStats(playerKey: string): Promise<PlayerStats | null>;
 
   // ── campaigns ──
   createCampaign(input: { joinCode: string; name: string; settings?: Record<string, unknown> }): Promise<CampaignRow>;
