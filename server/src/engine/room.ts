@@ -428,10 +428,10 @@ export class Room {
       const isWinner = won.has(p.name);
       if (isWinner) this.awardPoints(p.id, 3);
       // Career stats (optional accounts): fire-and-forget, keyed on player_key.
-      // Same +1/+3 numbers as the scoreboard. Never blocks or throws into flow.
+      // Same totals as the night scoreboard (+1 played, +3 more for a win).
       if (p.playerKey && this.storage) {
         void this.storage
-          .recordGameResult(p.playerKey, { won: isWinner, points: isWinner ? 3 : 1 })
+          .recordGameResult(p.playerKey, { won: isWinner, points: isWinner ? 4 : 1 })
           .catch((err) => console.warn(`[stats] recordGameResult failed:`, (err as Error).message));
       }
     }
