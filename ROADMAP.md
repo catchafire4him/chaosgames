@@ -30,7 +30,15 @@ for UI; `railway status` + `/healthz` after every deploy.
 
 ## Next big step (recommended order)
 
-### 1. Close out Campaign phase 8 — make production campaigns REAL ⚡ (small)
+> **2026-07-08 status**: item 1 ✅ (user verified production campaigns).
+> Item 2 ✅ shipped app-wide (Neon Auth; guest default, linked accounts,
+> career stats — "my characters" view deferred). **Campaign (module 4) is
+> PAUSED per user** — current focus is polish + reliability of the three
+> party modes. USER ACTION for production login: add
+> https://chaosgames-production.up.railway.app to Neon Console → Auth →
+> trusted origins.
+
+### 1. ✅ Close out Campaign phase 8 — make production campaigns REAL ⚡ (small)
 The only thing between the campaign and full production readiness:
 - [ ] **USER**: paste the Neon `DATABASE_URL` into the Railway dashboard
       variables (until then prod runs `storage=memory` — campaigns playable
@@ -39,7 +47,7 @@ The only thing between the campaign and full production readiness:
 - [ ] Play one real production campaign chapter end-to-end with 2+ phones
       (create → forge → declaration → fork → combat → camp → resume by code).
 
-### 2. Optional accounts, app-wide (task #35) — the retention feature (medium)
+### 2. ✅ Optional accounts, app-wide (task #35) — SHIPPED 2026-07-08
 Design locked in CAMPAIGN_DESIGN.md §5.3. Login is optional everywhere;
 `player_key` stays the runtime identity, login *links* it to an account.
 - [ ] Provision Neon Auth (Stack Auth) — note: client is Vite+React, use the
