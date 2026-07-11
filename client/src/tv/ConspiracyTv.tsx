@@ -9,6 +9,7 @@ interface GhostScore {
 interface Death {
   name: string;
   cause: "murder" | "vigilante" | "guilt";
+  role: string;
 }
 
 interface ConspiracyPublic {
@@ -21,6 +22,7 @@ interface ConspiracyPublic {
   nightActed: number | null;
   callVotes: number | null;
   aliveCount: number;
+  aliveCounts: { town: number; mafia: number; neutral: number };
 }
 
 export function ConspiracyTv({ room }: { room: PublicRoom }) {
@@ -36,7 +38,7 @@ export function ConspiracyTv({ room }: { room: PublicRoom }) {
       case "day": {
         const deaths = m.lastDawn?.deaths ?? [];
         return deaths.length
-          ? `☠ ${deaths.map((d) => d.name).join(" · ")} — dead by morning.`
+          ? `☠ ${deaths.map((d) => `${d.name} (${d.role})`).join(" · ")} — dead by morning.`
           : m.lastDawn?.saved
             ? "An attack — but the victim was saved!"
             : "Nobody died last night. Curious.";
@@ -74,6 +76,13 @@ export function ConspiracyTv({ room }: { room: PublicRoom }) {
     <>
       {banner && <div className="tv-banner fade-in" key={banner}>{banner}</div>}
       {sub && <div className="tv-sub">{sub}</div>}
+      {room.phase !== "role_reveal" && room.phase !== "ended" && m.aliveCounts && (
+        <div className="tv-sub" style={{ opacity: 0.85 }}>
+          🧑 {m.aliveCounts.town} town · 🔪 {m.aliveCounts.mafia} mafia
+          {m.aliveCounts.neutral > 0 ? <> · 🤡 {m.aliveCounts.neutral} jester</> : null}
+          {" "}remain
+        </div>
+      )}
       <PlayerGrid
         room={room}
         badge={(p) => {

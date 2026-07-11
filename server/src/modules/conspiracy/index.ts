@@ -35,6 +35,7 @@ const CONSPIRACY_TEAM: Role[] = ["conspirator", "godfather", "consigliere"];
 interface Death {
   name: string;
   cause: "murder" | "vigilante" | "guilt";
+  role: string;
 }
 interface Dawn {
   deaths: Death[];
@@ -82,6 +83,12 @@ function isConspiracy(p: ServerPlayer): boolean {
 /** the mayor's vote counts as two */
 function voteWeight(p: ServerPlayer): number {
   return D(p).role === "mayor" ? 2 : 1;
+}
+
+/** dying makes your role public — the TV shows it on your player card */
+function revealRole(p: ServerPlayer): void {
+  const info = MAFIA_ROLES[D(p).role ?? "innocent"];
+  p.tag = info ? `${info.emoji} ${info.name}` : (D(p).role ?? null);
 }
 
 interface Scaling {
@@ -210,7 +217,8 @@ function resolveNight(room: Room): void {
   for (const p of room.alive()) {
     if (D(p).role === "vigilante" && D(p).guilt) {
       p.status = "dead";
-      deaths.push({ name: p.name, cause: "guilt" });
+      revealRole(p);
+      deaths.push({ name: p.name, cause: "guilt", role: MAFIA_ROLES[D(p).role ?? "innocent"]?.name ?? "?" });
     }
   }
 
@@ -244,7 +252,8 @@ function resolveNight(room: Room): void {
     } else {
       settleGhostBets(room, target.id);
       target.status = "dead";
-      deaths.push({ name: target.name, cause: "murder" });
+      revealRole(target);
+      deaths.push({ name: target.name, cause: "murder", role: MAFIA_ROLES[D(target).role ?? "innocent"]?.name ?? "?" });
     }
   }
 
@@ -260,7 +269,8 @@ function resolveNight(room: Room): void {
       } else {
         settleGhostBets(room, shot.id);
         shot.status = "dead";
-        deaths.push({ name: shot.name, cause: "vigilante" });
+        revealRole(shot);
+        deaths.push({ name: shot.name, cause: "vigilante", role: MAFIA_ROLES[D(shot).role ?? "innocent"]?.name ?? "?" });
         if (!isConspiracy(shot)) {
           D(vigilante).guilt = true;
           room.whisper(
@@ -310,10 +320,10 @@ function resolveNight(room: Room): void {
   const deathLine = dawn.deaths
     .map((d) =>
       d.cause === "guilt"
-        ? `${d.name} took their own life, consumed by guilt`
+        ? `${d.name} took their own life, consumed by guilt — they were the ${d.role.toUpperCase()}`
         : d.cause === "vigilante"
-          ? `${d.name} was shot by an unknown hand`
-          : `${d.name} was murdered by the mafia`,
+          ? `${d.name} was shot by an unknown hand — they were the ${d.role.toUpperCase()}`
+          : `${d.name} was murdered by the mafia — they were the ${d.role.toUpperCase()}`,
     )
     .join("; ");
   room.play({
@@ -321,8 +331,8 @@ function resolveNight(room: Room): void {
     urgent: true,
     instruction: dawn.deaths.length
       ? `Dawn breaks. Tonight's toll: ${deathLine}. Narrate the grim discovery with dark humor — describe ` +
-        `HOW each body was found but keep every secret role hidden (never say "vigilante" or "guilt" ` +
-        `explicitly — imply). Then open the floor: the town should discuss and may call a vote.`
+        `HOW each body was found, and announce each victim's true role dramatically (it appears on the big ` +
+        `screen). Keep every LIVING player's role secret. Then open the floor: the town should discuss and may call a vote.`
       : dawn.saved
         ? `Dawn breaks and — a miracle — violence struck but every victim survived thanks to unseen ` +
           `protection. Don't say who. Stir up paranoia, then open discussion.`
@@ -384,6 +394,7 @@ function resolveVote(room: Room): void {
   if (victim) {
     settleGhostBets(room, victim.id);
     victim.status = "dead";
+    revealRole(victim);
     S(room).lastVerdict = { name: victim.name, role: D(victim).role!, tied: false };
   } else {
     S(room).lastVerdict = { name: "", role: "innocent", tied: true };
@@ -723,6 +734,14 @@ export const conspiracy: GameModule = {
         .filter((p) => p.status === "dead")
         .map((p) => ({ name: p.name, points: D(p).ghostPoints ?? 0 })),
       stats: s.stats ?? null,
+      aliveCounts: (() => {
+        const c = { town: 0, mafia: 0, neutral: 0 };
+        for (const p of room.alive()) {
+          const team = MAFIA_ROLES[D(p).role ?? "innocent"]?.team ?? "town";
+          c[team]++;
+        }
+        return c;
+      })(),
       // the big reveal: every player's true role, shown on the game-over screen
       finalRoles:
         room.phase === "ended"
@@ -808,7 +827,7 @@ export const conspiracy: GameModule = {
       `INNOCENT to the detective; the jester wins only by being voted out; the mayor's vote counts ` +
       `as two (you may narrate their vote as carrying extra weight without naming them); the ` +
       `consigliere learns a player's exact role each night.\n` +
-      `PLAYERS (you know every secret; NEVER reveal roles unless instructed):\n${roster}\n` +
+      `PLAYERS (you know every secret; dead players' roles are PUBLIC, never reveal a living player's role):\n${roster}\n` +
       (events.length ? `RECENT EVENTS: ${events.join(" ")}` : "")
     );
   },
@@ -831,7 +850,7 @@ export const conspiracy: GameModule = {
         const deaths = s.lastDawn?.deaths ?? [];
         return deaths.length
           ? [
-              { text: `Dawn breaks... and ${deaths.map((d) => d.name).join(" and ")} will not be joining us for breakfast.`, mood: "grim" },
+              { text: `Dawn breaks... and ${deaths.map((d) => `${d.name} the ${d.role}`).join(" and ")} will not be joining us for breakfast.`, mood: "grim" },
               { text: "The town is awake, afraid, and free to point fingers. Discuss.", mood: "stirring" },
             ]
           : [
