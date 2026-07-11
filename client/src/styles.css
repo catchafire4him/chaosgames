@@ -1606,3 +1606,68 @@ input {
 .token-bar.enemy > div { height: 100%; background: var(--danger); }
 .token-bar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
 .combat-log { max-width: 640px; font-size: 15px; color: var(--ink-dim); font-style: italic; text-align: center; line-height: 1.5; }
+
+/* ── Roles in Play (TV Lobby) ── */
+.lobby-panels .roles-panel { flex: 0 1 340px; min-width: 300px; }
+.roles-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 320px;
+  max-width: 460px;
+}
+.roles-list-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 4px;
+}
+.role-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: calc(var(--radius) - 4px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.role-row.team-mafia {
+  border-left: 3px solid var(--danger, #ff4d4d);
+}
+.role-row.team-town {
+  border-left: 3px solid var(--accent, #ffd700);
+}
+.role-row.team-neutral {
+  border-left: 3px solid #888;
+}
+.role-emoji {
+  font-size: 20px;
+}
+.role-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+}
+.role-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.role-count {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--accent);
+  margin-left: 4px;
+}
+.role-team-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+

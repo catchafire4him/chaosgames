@@ -239,7 +239,7 @@ function resolveNight(room: Room): void {
             `${shot.name} was INNOCENT. The guilt is unbearable — you will not survive tomorrow night.`,
           );
         } else {
-          room.whisper(vigilante.id, `${shot.name} was a conspirator. Justice, delivered.`);
+          room.whisper(vigilante.id, `${shot.name} was a member of the mafia. Justice, delivered.`);
         }
       }
     }
@@ -258,7 +258,7 @@ function resolveNight(room: Room): void {
       const reads = D(suspect).role === "conspirator"; // godfather lies
       if (reads) s.detHits = (s.detHits ?? 0) + 1;
       D(det).nightResult =
-        `${suspect.name} ${reads ? "IS one of the conspirators!" : "is not a conspirator."}`;
+        `${suspect.name} ${reads ? "IS one of the mafia!" : "is not a member of the mafia."}`;
       room.whisper(det.id, `Your investigation: ${D(det).nightResult}`);
     }
   }
@@ -284,7 +284,7 @@ function resolveNight(room: Room): void {
         ? `${d.name} took their own life, consumed by guilt`
         : d.cause === "vigilante"
           ? `${d.name} was shot by an unknown hand`
-          : `${d.name} was murdered by the conspiracy`,
+          : `${d.name} was murdered by the mafia`,
     )
     .join("; ");
   room.play({
@@ -388,7 +388,7 @@ function resolveVote(room: Room): void {
         `Narrate their dramatic exit and REVEAL their true role to everyone. React accordingly ` +
         `(horror if innocent-aligned, triumph if a conspirator). Then warn that night approaches.`
       : `The vote was deadlocked — nobody is banished. Mock the town's indecision. Warn that the ` +
-        `conspirators will feast on this hesitation as night falls.`,
+        `mafia will feast on this hesitation as night falls.`,
     after: (r) => beginNight(r),
   });
 }
@@ -406,7 +406,7 @@ function buildStats(room: Room): void {
   }
   if (s.firstBlood) stats.push({ label: "First blood", value: s.firstBlood });
   if ([...room.players.values()].some((p) => D(p).role === "detective")) {
-    stats.push({ label: "Detective's record", value: `${s.detHits ?? 0} conspirator(s) identified` });
+    stats.push({ label: "Detective's record", value: `${s.detHits ?? 0} mafia identified` });
   }
   const vig = [...room.players.values()].find((p) => D(p).role === "vigilante");
   if (vig && D(vig).bulletUsed) {
@@ -456,9 +456,9 @@ function checkGameOver(room: Room): boolean {
     urgent: true,
     instruction:
       winnerSide === "town"
-        ? `GAME OVER — the town wins! Every conspirator is gone. Reveal the full truth: the conspiracy ` +
+        ? `GAME OVER — the town wins! Every member of the mafia is gone. Reveal the full truth: the mafia ` +
           `was ${teamNames}. Recap the cleverest and dumbest moments, crown the town, and sign off with flair.`
-        : `GAME OVER — the conspiracy wins! They were ${teamNames}, and they now match the innocent in ` +
+        : `GAME OVER — the mafia wins! They were ${teamNames}, and they now match the innocent in ` +
           `number. Reveal the truth, gloat theatrically on their behalf, roast the town's mistakes, and sign off.`,
   });
   room.broadcast();
@@ -469,7 +469,7 @@ function checkGameOver(room: Room): boolean {
 
 export const conspiracy: GameModule = {
   id: "conspiracy",
-  name: "Conspiracy",
+  name: "Mafia",
   tagline: "Someone at this table is lying. Probably several someones.",
   minPlayers: 4,
   maxPlayers: 16,
@@ -479,7 +479,7 @@ export const conspiracy: GameModule = {
     `with a knowing smile — like a documentary narrator who enjoys the murders slightly too much`,
 
   persona:
-    `You are "The Narrator" — the velvet-voiced, gleefully sinister host of CONSPIRACY, a party game of ` +
+    `You are "The Narrator" — the velvet-voiced, gleefully sinister host of MAFIA, a party game of ` +
     `secret roles and public betrayal, set in the fog-bound town of Grimsby Hollow. You see everything, ` +
     `including every secret role, but you NEVER reveal hidden information unless the game explicitly tells ` +
     `you to. You address players by name, tease and roast them affectionately, and keep the energy high. ` +
@@ -530,7 +530,7 @@ export const conspiracy: GameModule = {
       instruction:
         `A new game begins with ${n} players: ${players.map((p) => p.name).join(", ")}. ` +
         `Welcome them to Grimsby Hollow, explain in 3-4 punchy lines that ${sc.conspirators} of them ` +
-        `form a secret conspiracy that kills by night while the town votes to banish by day. Mention the ` +
+        `form a secret mafia that kills by night while the town votes to banish by day. Mention the ` +
         `special roles in play tonight (${s.rolesList!.join(", ")}) WITHOUT revealing who holds them` +
         `${sc.jester ? " — and warn that the jester WANTS to be voted out" : ""}. Tell everyone to check ` +
         `their phone NOW for their secret role — and to keep their poker face on.`,
@@ -731,7 +731,7 @@ export const conspiracy: GameModule = {
       );
     }
     return (
-      `GAME: Conspiracy — round ${room.round}, phase ${room.phase}.\n` +
+      `GAME: Mafia — round ${room.round}, phase ${room.phase}.\n` +
       `SPECIAL ROLES IN PLAY: ${(s.rolesList ?? []).join(", ")}. Note: the godfather reads as ` +
       `INNOCENT to the detective; the jester wins only by being voted out; the mayor's vote counts ` +
       `as two (you may narrate their vote as carrying extra weight without naming them); the ` +
@@ -747,7 +747,7 @@ export const conspiracy: GameModule = {
       case "intro":
         return [
           { text: "Welcome to Grimsby Hollow, where the fog is thick and the neighbors are thicker.", mood: "gleeful" },
-          { text: `Among you, ${s.totalConspirators ?? 1} conspirators plot in the dark. The rest of you are merely... targets.`, mood: "ominous" },
+          { text: `Among you, ${s.totalConspirators ?? 1} mafia members plot in the dark. The rest of you are merely... targets.`, mood: "ominous" },
           { text: "Check your phones for your secret role. And do try to keep a straight face.", mood: "deadpan" },
         ];
       case "nightfall":
@@ -774,10 +774,10 @@ export const conspiracy: GameModule = {
         ];
       case "verdict":
         return s.lastVerdict?.tied
-          ? [{ text: "A deadlock! Nobody hangs today — and the conspirators grin in the shadows.", mood: "wry" }]
+          ? [{ text: "A deadlock! Nobody hangs today — and the mafia grin in the shadows.", mood: "wry" }]
           : [
               { text: `The town has banished ${s.lastVerdict?.name}.`, mood: "grave" },
-              { text: `They were... ${CONSPIRACY_TEAM.includes(s.lastVerdict?.role ?? "innocent") ? "a CONSPIRATOR! Well done." : `${s.lastVerdict?.role}. Oops.`}`, mood: CONSPIRACY_TEAM.includes(s.lastVerdict?.role ?? "innocent") ? "triumphant" : "horrified" },
+              { text: `They were... ${CONSPIRACY_TEAM.includes(s.lastVerdict?.role ?? "innocent") ? "a member of the MAFIA! Well done." : `${s.lastVerdict?.role}. Oops.`}`, mood: CONSPIRACY_TEAM.includes(s.lastVerdict?.role ?? "innocent") ? "triumphant" : "horrified" },
             ];
       case "gameover":
         return [

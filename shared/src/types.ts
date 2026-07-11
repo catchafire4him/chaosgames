@@ -56,6 +56,138 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   conspiracyRoles: "full",
 };
 
+export interface MafiaRoleDetails {
+  id: string;
+  name: string;
+  emoji: string;
+  team: "mafia" | "town" | "neutral";
+  winCondition: string;
+  ability: string;
+}
+
+export const MAFIA_ROLES: Record<string, MafiaRoleDetails> = {
+  godfather: {
+    id: "godfather",
+    name: "Godfather",
+    emoji: "🕴️",
+    team: "mafia",
+    winCondition: "Outnumber or equal the Town.",
+    ability: "Leads the Mafia. Appears innocent to Detective investigations.",
+  },
+  consigliere: {
+    id: "consigliere",
+    name: "Consigliere",
+    emoji: "📖",
+    team: "mafia",
+    winCondition: "Outnumber or equal the Town.",
+    ability: "Advisor to the Mafia. Learns players' exact roles at night.",
+  },
+  conspirator: {
+    id: "conspirator",
+    name: "Mafia",
+    emoji: "🔪",
+    team: "mafia",
+    winCondition: "Outnumber or equal the Town.",
+    ability: "Eliminates players at night with the Mafia team.",
+  },
+  detective: {
+    id: "detective",
+    name: "Detective",
+    emoji: "🔍",
+    team: "town",
+    winCondition: "Eliminate all Mafia members.",
+    ability: "Investigates alignments (Mafia vs Innocent) each night.",
+  },
+  doctor: {
+    id: "doctor",
+    name: "Doctor",
+    emoji: "🫁",
+    team: "town",
+    winCondition: "Eliminate all Mafia members.",
+    ability: "Protects one player each night from elimination.",
+  },
+  vigilante: {
+    id: "vigilante",
+    name: "Vigilante",
+    emoji: "🔫",
+    team: "town",
+    winCondition: "Eliminate all Mafia members.",
+    ability: "Has one bullet to shoot a suspect. Dies of guilt if target is innocent.",
+  },
+  jester: {
+    id: "jester",
+    name: "Jester",
+    emoji: "🤡",
+    team: "neutral",
+    winCondition: "Get voted out by the Town.",
+    ability: "Has no night powers. Wins only by getting voted out.",
+  },
+  mayor: {
+    id: "mayor",
+    name: "Mayor",
+    emoji: "📜",
+    team: "town",
+    winCondition: "Eliminate all Mafia members.",
+    ability: "Vote counts as double in daytime voting.",
+  },
+  innocent: {
+    id: "innocent",
+    name: "Innocent",
+    emoji: "🧑",
+    team: "town",
+    winCondition: "Eliminate all Mafia members.",
+    ability: "Has no night powers. Uses deduction and logic to survive.",
+  },
+};
+
+export function getMafiaRoleCounts(n: number, mode: "classic" | "full"): { id: string; count: number }[] {
+  if (n < 4) return [];
+  const mafiaCount = n >= 13 ? 4 : n >= 10 ? 3 : n >= 7 ? 2 : 1;
+  const full = mode === "full";
+  
+  const sc = {
+    mafia: mafiaCount,
+    godfather: full && mafiaCount >= 2,
+    consigliere: full && n >= 13,
+    doctor: n >= 5,
+    detectives: n >= 13 ? 2 : 1,
+    vigilante: full && n >= 9,
+    jester: full && n >= 8,
+    mayor: full && n >= 11,
+  };
+
+  const counts: Record<string, number> = {};
+  
+  let remainingMafia = sc.mafia;
+  if (sc.godfather) {
+    counts.godfather = 1;
+    remainingMafia--;
+  }
+  if (sc.consigliere) {
+    counts.consigliere = 1;
+    remainingMafia--;
+  }
+  if (remainingMafia > 0) {
+    counts.conspirator = remainingMafia;
+  }
+
+  counts.detective = sc.detectives;
+  if (sc.doctor) counts.doctor = 1;
+  if (sc.vigilante) counts.vigilante = 1;
+  if (sc.jester) counts.jester = 1;
+  if (sc.mayor) counts.mayor = 1;
+
+  const specialCount = Object.values(counts).reduce((a, b) => a + b, 0);
+  counts.innocent = Math.max(0, n - specialCount);
+
+  // Return roles ordered by team (mafia first, then town, then neutral) for neat listing
+  const order = ["godfather", "consigliere", "conspirator", "detective", "doctor", "vigilante", "mayor", "innocent", "jester"];
+  return order
+    .map(id => ({ id, count: counts[id] ?? 0 }))
+    .filter(item => item.count > 0);
+}
+
+
 /** A secret self-claimed side mission, revealed at game over. */
 export interface ObjectiveReveal {
   name: string;

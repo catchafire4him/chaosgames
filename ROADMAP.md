@@ -8,7 +8,7 @@
 ## Where we are
 
 **Live in production** (Railway, auto-deploy from `master`):
-- **4 game modes**: Conspiracy (social deduction), Whodunnit (murder
+- **4 game modes**: Mafia (social deduction), Whodunnit (murder
   mystery), Dungeon Run (party RPG), and **Chaos Campaign** (persistent
   AI-DM'd D&D — free-text actions, zone combat, chapters that remember,
   generated pixel-art hero portraits).

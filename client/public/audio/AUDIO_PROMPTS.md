@@ -4,7 +4,7 @@ Each game mode is wired to look for its own looping ambient track:
 
 | Module      | Expected file                  |
 |-------------|---------------------------------|
-| Conspiracy  | `conspiracy-theme.mp3`          |
+| Mafia (Conspiracy) | `conspiracy-theme.mp3`          |
 | Whodunnit   | `whodunnit-theme.mp3`           |
 | Dungeon Run | `dungeon-theme.mp3`             |
 

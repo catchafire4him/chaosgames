@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getMafiaRoleCounts, MAFIA_ROLES } from "@shared/index";
 import type { PublicPlayer, PublicRoom } from "@shared/index";
 import { avatarSrc } from "../ui";
 import type { Send } from "../pages/Play";
@@ -32,20 +33,20 @@ interface ConspiracyYou {
 
 const ROLE_INFO: Record<string, { title: string; desc: string; bad?: boolean }> = {
   conspirator: {
-    title: "Conspirator",
+    title: "Mafia",
     desc: "Each night, you and your allies choose someone to eliminate. By day: lie, deflect, survive.",
     bad: true,
   },
   godfather: {
     title: "Godfather",
     desc:
-      "You lead the conspiracy — and to the detective's eye, you appear INNOCENT. " +
+      "You lead the mafia — and to the detective's eye, you appear INNOCENT. " +
       "Each night, choose a victim with your allies.",
     bad: true,
   },
   doctor: {
     title: "Doctor",
-    desc: "Each night, choose someone to protect. If the conspirators strike them, they survive.",
+    desc: "Each night, choose someone to protect. If the mafia strikes them, they survive.",
   },
   detective: {
     title: "Detective",
@@ -70,13 +71,13 @@ const ROLE_INFO: Record<string, { title: string; desc: string; bad?: boolean }> 
   consigliere: {
     title: "Consigliere",
     desc:
-      "Advisor to the conspiracy. Each night, investigate someone to learn their EXACT role — " +
+      "Advisor to the mafia. Each night, investigate someone to learn their EXACT role — " +
       "sharper intel than the detective ever gets.",
     bad: true,
   },
   innocent: {
     title: "Innocent",
-    desc: "You have no powers — only your wits. Find the conspirators before they find you.",
+    desc: "You have no powers — only your wits. Find the mafia before they find you.",
   },
 };
 
@@ -94,14 +95,16 @@ export function ConspiracyPhone({
   const y = (you ?? {}) as Partial<ConspiracyYou>;
   const role = y.role ?? null;
   const [lastWords, setLastWords] = useState("");
+  const [showGuide, setShowGuide] = useState(false);
   const act = (action: Record<string, unknown>) => send({ type: "action", action: { kind: "", ...action } as never });
 
   const targets = (exclude: (p: PublicPlayer) => boolean) =>
     room.players.filter((p) => p.status === "alive" && p.id !== me.id && !exclude(p));
 
-  if (me.status === "dead" && room.phase !== "ended") {
-    const betting = room.phase === "night" || room.phase === "voting";
-    return (
+  const renderContent = () => {
+    if (me.status === "dead" && room.phase !== "ended") {
+      const betting = room.phase === "night" || room.phase === "voting";
+      return (
       <div className="dead-screen">
         <div className="skull">👻</div>
         <div className="phone-title">
@@ -191,7 +194,7 @@ export function ConspiracyPhone({
             <div className="role-desc">{ROLE_INFO[role ?? ""]?.desc}</div>
             {!!y.allies?.length && (
               <div className="role-desc" style={{ color: "var(--accent)" }}>
-                Your fellow conspirators: {y.allies.join(", ")}
+                Your fellow mafia members: {y.allies.join(", ")}
               </div>
             )}
           </div>
@@ -331,9 +334,56 @@ export function ConspiracyPhone({
         </>
       );
 
-    default:
-      return <p className="phone-hint">Watch the big screen...</p>;
-  }
+      default:
+        return <p className="phone-hint">Watch the big screen...</p>;
+    }
+  };
+
+  return (
+    <div className="mafia-phone-container" style={{ position: "relative", width: "100%", display: "flex", flexDirection: "column", gap: "10px" }}>
+      <button 
+        className="guide-toggle-btn" 
+        style={{ alignSelf: "center", fontSize: "14px", padding: "6px 16px", borderRadius: "16px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", color: "var(--ink)", fontWeight: "bold" }}
+        onClick={() => setShowGuide(true)}
+      >
+        📖 Roles Guide
+      </button>
+
+      {renderContent()}
+
+      {showGuide && (
+        <div className="guide-modal-overlay" onClick={() => setShowGuide(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: "20px" }}>
+          <div className="guide-modal-dialog" onClick={(e) => e.stopPropagation()} style={{ background: "#161622", border: "1px solid var(--line)", borderRadius: "12px", width: "100%", maxWidth: "400px", maxHeight: "85vh", display: "flex", flexDirection: "column", padding: "20px", position: "relative" }}>
+            <button className="modal-close" onClick={() => setShowGuide(false)} style={{ position: "absolute", top: "12px", right: "16px", background: "none", border: "none", color: "var(--ink-dim)", fontSize: "24px", cursor: "pointer" }}>×</button>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "18px" }}>📖 Mafia Roles Guide</h3>
+            <p className="guide-intro" style={{ margin: "0 0 16px 0", fontSize: "13px", color: "var(--ink-dim)", lineHeight: "1.4" }}>
+              Roles highlighted in <span style={{ color: "var(--accent)" }}>gold</span> are active in tonight's game based on the current player count.
+            </p>
+            <div className="guide-roles-list" style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+              {Object.values(MAFIA_ROLES).map((r) => {
+                const activeRoles = getMafiaRoleCounts(room.players.length, room.settings.conspiracyRoles);
+                const isActive = activeRoles.some((ar) => ar.id === r.id);
+                return (
+                  <div key={r.id} className={`guide-role-card team-${r.team} ${isActive ? "active" : ""}`} style={{ padding: "10px 12px", borderRadius: "8px", background: "rgba(255,255,255,0.02)", border: isActive ? "1px solid var(--accent)" : "1px solid rgba(255,255,255,0.05)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                      <span style={{ fontSize: "18px" }}>{r.emoji}</span>
+                      <strong style={{ fontSize: "14px", color: isActive ? "var(--accent)" : "var(--ink)" }}>{r.name}</strong>
+                      <span style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", color: r.team === "mafia" ? "var(--danger)" : r.team === "town" ? "var(--accent)" : "#888", marginLeft: "auto", fontWeight: "bold" }}>{r.team}</span>
+                    </div>
+                    <div style={{ fontSize: "12px", color: "var(--ink-dim)", lineHeight: "1.4" }}>
+                      <div><strong>Power:</strong> {r.ability}</div>
+                      <div style={{ marginTop: "3px" }}><strong>Wins:</strong> {r.winCondition}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button className="primary" style={{ marginTop: "16px", padding: "10px" }} onClick={() => setShowGuide(false)}>Close</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Inbox({ messages }: { messages?: string[] }) {

@@ -103,9 +103,9 @@ interface GameModule {
 Modules fire beats via `room.play(beatId)` from their own flow code.
 Everything else (lobby, QR join, reconnects, voice, timers) is engine.
 
-### Module 1 — Conspiracy (social deduction)
+### Module 1 — Mafia (social deduction)
 Roles (scaled 4→16 players, gated by the `conspiracyRoles` setting — classic
-vs. full chaos): conspirators (1–4), godfather (reads INNOCENT to the
+vs. full chaos): mafia (1–4), godfather (reads INNOCENT to the
 detective), doctor, detective(s), vigilante (one bullet; guilt kills them if
 they shoot an innocent), jester (neutral — wins only by being voted out),
 mayor (vote counts as two), consigliere (learns a player's exact role each

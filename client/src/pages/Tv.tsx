@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getMafiaRoleCounts, MAFIA_ROLES } from "@shared/index";
 import type { ClientMessage, ModuleId, ModuleInfo, NarrationLine, PublicRoom } from "@shared/index";
 import { navigate } from "../App";
 import { Music, VoiceEngine } from "../audio/voice";
@@ -359,6 +360,35 @@ function LobbyScene({
         {/* side-by-side to keep the lobby on one screen */}
         <div className="lobby-panels">
           <QuickStart moduleId={room.moduleId} />
+          {room.moduleId === "conspiracy" && (
+            <div className="roles-panel fade-in">
+              <div className="flyout-title" style={{ fontSize: 16 }}>🎭 Roles in Play ({room.players.length} Players)</div>
+              {room.players.length < 4 ? (
+                <div className="stat-row" style={{ fontSize: 16, color: "var(--danger)" }}>
+                  Need 4+ players to deal roles.
+                </div>
+              ) : (
+                <div className="roles-list-grid">
+                  {getMafiaRoleCounts(room.players.length, room.settings.conspiracyRoles).map(({ id, count }) => {
+                    const info = MAFIA_ROLES[id];
+                    if (!info) return null;
+                    return (
+                      <div className={`role-row team-${info.team}`} key={id}>
+                        <span className="role-emoji">{info.emoji}</span>
+                        <div className="role-text">
+                          <span className="role-name">
+                            {info.name === "conspirator" ? "Mafia" : info.name}{" "}
+                            <span className="role-count">x{count}</span>
+                          </span>
+                          <span className="role-team-label">{info.team}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           {room.scoreboard.length > 0 && (
             <div className="scoreboard-panel fade-in">
               <div className="flyout-title" style={{ fontSize: 16 }}>🏆 Tonight's leaderboard</div>
@@ -453,9 +483,9 @@ const HOW_TO_PLAY: Record<string, { icon: string; steps: string[] }> = {
   conspiracy: {
     icon: "🎭",
     steps: [
-      "You're secretly assigned a role — most are innocent, a few are conspirators.",
+      "You're secretly assigned a role — most are innocent, a few are mafia.",
       "Each night the guilty strike; each day everyone debates and votes someone out.",
-      "Innocents win by voting out the conspirators; the guilty win by outlasting them.",
+      "Innocents win by voting out the mafia; the guilty win by outlasting them.",
     ],
   },
   whodunnit: {
@@ -685,7 +715,7 @@ function GameOver({ room, send }: { room: PublicRoom; send: Send }) {
 
 /** party modes the host can hot-swap between from the lobby / game-over screen */
 const SWITCHABLE_MODES: { id: ModuleId; name: string }[] = [
-  { id: "conspiracy", name: "Conspiracy" },
+  { id: "conspiracy", name: "Mafia" },
   { id: "whodunnit", name: "Whodunnit" },
   { id: "dungeon", name: "Dungeon Run" },
 ];

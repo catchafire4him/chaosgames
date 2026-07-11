@@ -30,7 +30,7 @@ export function ConspiracyTv({ room }: { room: PublicRoom }) {
   const banner = (() => {
     switch (room.phase) {
       case "role_reveal":
-        return `${m.totalConspirators} conspirator${m.totalConspirators > 1 ? "s" : ""} walk among you. Check your phones.`;
+        return `${m.totalConspirators} mafia member${m.totalConspirators > 1 ? "s" : ""} walk among you. Check your phones.`;
       case "night":
         return "The town sleeps. Some of you are... busy.";
       case "day": {

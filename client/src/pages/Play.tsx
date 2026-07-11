@@ -343,7 +343,7 @@ function HostPanel({ room, send }: { room: PublicRoom; send: Send }) {
                       .filter((m) => m !== room.moduleId)
                       .map((m) => (
                         <button key={m} onClick={() => host({ command: "switch_module", moduleId: m })}>
-                          {m === "dungeon" ? "Dungeon Run" : m}
+                          {m === "dungeon" ? "Dungeon Run" : m === "conspiracy" ? "Mafia" : m}
                         </button>
                       ))}
                   </div>

@@ -4,7 +4,7 @@ Voice-driven, AI-hosted digital tabletop party game. One shared big screen,
 players join on their phones via QR code, and an AI Game Master narrates the
 whole thing out loud. See [ARCHITECTURE.md](ARCHITECTURE.md) for the design.
 
-**Game modes:** Conspiracy (social deduction) · Whodunnit (murder mystery) · Dungeon Run (party RPG)
+**Game modes:** Mafia (social deduction) · Whodunnit (murder mystery) · Dungeon Run (party RPG)
 
 ## Run locally
 ```powershell
