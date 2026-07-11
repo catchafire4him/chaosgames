@@ -246,7 +246,9 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
           flushIfUrgent();
           room.sendTv({ type: "host_thinking", on: false }); // the host is speaking
           room.sendTv({ type: "narration", line });
-          synthLine(room, line, () => !cancelled);
+          // a skipped/superseded beat's audio is dead weight — let the TTS
+          // queue drop it (finished implies the TV no longer awaits these acks)
+          synthLine(room, line, () => !cancelled && !finished);
         },
   };
 
@@ -317,7 +319,9 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
     // Batch the remainder into one TTS request when it's long enough (quota:
     // TTS preview models allow ~10 req/min, shared across rooms); otherwise
     // stream each line's audio individually.
-    const live = () => !cancelled;
+    // superseded (cancelled) or force-advanced/timed-out (finished) — either
+    // way nobody is waiting on this audio anymore
+    const live = () => !cancelled && !finished;
     const batched = rest.length >= (early ? 2 : TTS_BATCH_MIN);
     if (batched) {
       const leader = rest[0];
