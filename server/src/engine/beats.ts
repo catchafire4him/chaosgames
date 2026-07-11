@@ -131,12 +131,17 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
   // cancelling it would drop its after() continuation and strand the game.
   // Wait for the stage to free up (up to ~20s), then perform; else drop.
   if (beat.interject && (room.pending || room.composing)) {
-    if (waited < 20_000) {
+    if (waited < 60_000) {
       setTimeout(() => {
         void runBeat(room, beat, waited + 1000).catch(() => {});
       }, 1000);
     } else {
       console.warn(`[room:${room.code}] interjection "${beat.id}" dropped — stage never freed`);
+      try {
+        beat.onDropped?.(room);
+      } catch (err) {
+        console.warn(`[room:${room.code}] interjection "${beat.id}" onDropped crashed:`, err);
+      }
     }
     return;
   }

@@ -643,7 +643,7 @@ function Backdrop({ bg }: { bg: string }) {
 function GameOver({ room, send }: { room: PublicRoom; send: Send }) {
   const mod = room.module as {
     stats?: { label: string; value: string }[] | null;
-    finalRoles?: { name: string; label: string; emoji: string; team: string }[] | null;
+    finalRoles?: { name: string; label: string; emoji: string; team: string; ghostPoints: number | null }[] | null;
   } | null;
   const stats = mod?.stats;
   const finalRoles = mod?.finalRoles;
@@ -654,60 +654,69 @@ function GameOver({ room, send }: { room: PublicRoom; send: Send }) {
       <div className="tv-banner title-font fade-in">
         🏆 {room.winners?.length ? room.winners.join(", ") : "Nobody"} wins!
       </div>
-      {!!finalRoles?.length && (
-        <div className="stats-panel fade-in" style={{ maxWidth: 900 }}>
-          <div className="stat-row">
-            <span className="stat-label">🎭 The truth</span>
-            <span className="stat-value" style={{ color: "var(--ink-dim)" }}>
-              who everyone really was
-            </span>
-          </div>
-          {finalRoles.map((r) => (
-            <div className="stat-row" key={r.name} style={{ fontSize: 18 }}>
-              <span>{r.name}</span>
-              <span className="stat-value" style={{ color: teamColor(r.team) }}>
-                {r.emoji} {r.label}
+      <div className="gameover-panels">
+        {!!finalRoles?.length && (
+          <div className="stats-panel fade-in">
+            <div className="stat-row">
+              <span className="stat-label">🎭 The truth</span>
+              <span className="stat-value" style={{ color: "var(--ink-dim)" }}>
+                who everyone really was
               </span>
             </div>
-          ))}
-        </div>
-      )}
-      {!!stats?.length && (
-        <div className="stats-panel fade-in">
-          {stats.map((s) => (
-            <div className="stat-row" key={s.label}>
-              <span className="stat-label">{s.label}</span>
-              <span className="stat-value">{s.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {!!room.objectives?.length && (
-        <div className="stats-panel fade-in" style={{ maxWidth: 900 }}>
-          <div className="stat-row">
-            <span className="stat-label">🎯 Secret missions</span>
-            <span className="stat-value" style={{ color: "var(--ink-dim)" }}>
-              (claimed on the honor system — dispute loudly)
-            </span>
-          </div>
-          {room.objectives
-            .filter((o) => o.text)
-            .map((o) => (
-              <div className="stat-row" key={o.name} style={{ fontSize: 18 }}>
-                <span>{o.claimed ? "✅" : "❌"} {o.name}</span>
-                <span className="stat-value" style={{ fontStyle: "italic" }}>{o.text}</span>
+            {finalRoles.map((r) => (
+              <div className="stat-row" key={r.name}>
+                <span>{r.name}</span>
+                <span className="stat-value" style={{ color: teamColor(r.team) }}>
+                  {r.emoji} {r.label}
+                  {r.ghostPoints != null && (
+                    <span title="correct ghost predictions" style={{ color: "var(--ink-dim)" }}>
+                      {" "}· 🔮 {r.ghostPoints}
+                    </span>
+                  )}
+                </span>
               </div>
             ))}
-        </div>
-      )}
-      <PlayerGrid
-        room={room}
-        art={moduleArt(room)}
-        badge={(p) => (room.winners?.includes(p.name) ? "🏆" : undefined)}
-      />
+          </div>
+        )}
+        {!!stats?.length && (
+          <div className="stats-panel fade-in">
+            {stats.map((s) => (
+              <div className="stat-row" key={s.label}>
+                <span className="stat-label">{s.label}</span>
+                <span className="stat-value">{s.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!!room.objectives?.length && (
+          <div className="stats-panel fade-in">
+            <div className="stat-row">
+              <span className="stat-label">🎯 Secret missions</span>
+              <span className="stat-value" style={{ color: "var(--ink-dim)" }}>
+                (claimed on the honor system — dispute loudly)
+              </span>
+            </div>
+            {room.objectives
+              .filter((o) => o.text)
+              .map((o) => (
+                <div className="stat-row mission-row" key={o.name}>
+                  <span>{o.claimed ? "✅" : "❌"} {o.name}</span>
+                  <span className="stat-value" style={{ fontStyle: "italic" }}>{o.text}</span>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+      <div className="gameover-grid">
+        <PlayerGrid
+          room={room}
+          art={moduleArt(room)}
+          badge={(p) => (room.winners?.includes(p.name) ? "🏆" : undefined)}
+        />
+      </div>
       <button
         className="primary"
-        style={{ fontSize: 24, padding: "16px 44px" }}
+        style={{ fontSize: 20, padding: "12px 36px" }}
         onClick={() => send({ type: "tv_command", command: "play_again" })}
       >
         ↺ Rematch (same game)

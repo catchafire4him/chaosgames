@@ -36,8 +36,11 @@ export interface Beat {
   /** a side-comment (ghost last words, ...): if another beat is on stage,
    *  WAIT for it instead of superseding it — superseding cancels the pending
    *  beat's after() continuation and can strand the game. Dropped if the
-   *  stage never frees up. */
+   *  stage never frees up (see onDropped). */
   interject?: boolean;
+  /** interjections only: called if the stage never freed and the beat was
+   *  dropped — lets the module refund a one-shot (e.g. ghost last words) */
+  onDropped?: (room: Room) => void;
   /** extra tools available to the Director for this beat only */
   tools?: HostTool[];
   /** when set, the Director must also return `data` matching this schema */

@@ -586,6 +586,15 @@ export const conspiracy: GameModule = {
         instruction:
           `From beyond the grave, ${player.name}'s ghost has left their LAST WORDS, verbatim: "${text}". ` +
           `Read them aloud with theatrical gravity and react in 1-2 lines. Reveal no secrets.`,
+        onDropped: (r) => {
+          // the stage never freed — give the ghost their one shot back
+          D(player).lastWordsUsed = false;
+          r.whisper(
+            player.id,
+            "The host never found a quiet moment for your last words — they were returned to you. Try again.",
+          );
+          r.broadcast();
+        },
       });
       return;
     }
@@ -724,6 +733,7 @@ export const conspiracy: GameModule = {
                 label: info?.name ?? D(p).role ?? "innocent",
                 emoji: info?.emoji ?? "",
                 team: info?.team ?? "town",
+                ghostPoints: p.status === "dead" ? (D(p).ghostPoints ?? 0) : null,
               };
             })
           : null,

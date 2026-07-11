@@ -337,6 +337,30 @@ input {
   min-width: 460px;
   max-width: 760px;
 }
+.gameover-panels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  justify-content: center;
+  align-items: flex-start;
+  max-width: 1500px;
+}
+.gameover-panels .stats-panel {
+  flex: 1 1 360px;
+  max-width: 470px;
+  min-width: 320px;
+  margin: 0;
+  padding: 14px 22px;
+  gap: 6px;
+}
+.gameover-panels .stat-row { font-size: 16px; }
+.gameover-panels .mission-row { font-size: 14px; }
+/* game over must fit a TV without scrolling: compact the player chips */
+.gameover-grid .player-grid { gap: 10px; }
+.gameover-grid .player-chip { width: 92px; padding: 6px; }
+.gameover-grid .player-chip img { width: 56px; height: 56px; }
+.gameover-grid .player-chip .p-name { font-size: 14px; margin-top: 3px; }
+.gameover-grid .player-chip .p-tag { display: none; }
 .stat-row { display: flex; justify-content: space-between; gap: 30px; font-size: 21px; }
 .stat-label { color: var(--accent); font-variant: small-caps; }
 .stat-value { text-align: right; }
