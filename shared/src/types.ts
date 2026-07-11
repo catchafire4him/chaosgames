@@ -72,7 +72,8 @@ export const MAFIA_ROLES: Record<string, MafiaRoleDetails> = {
     emoji: "🕴️",
     team: "mafia",
     winCondition: "Outnumber or equal the Town.",
-    ability: "Leads the Mafia. Appears innocent to Detective investigations.",
+    ability:
+      "Leads the Mafia. Appears innocent to Detective investigations, and their pick decides the kill if the family can't agree.",
   },
   consigliere: {
     id: "consigliere",
@@ -88,7 +89,7 @@ export const MAFIA_ROLES: Record<string, MafiaRoleDetails> = {
     emoji: "🔪",
     team: "mafia",
     winCondition: "Outnumber or equal the Town.",
-    ability: "Eliminates players at night with the Mafia team.",
+    ability: "Eliminates players at night — the whole team must agree on one victim.",
   },
   detective: {
     id: "detective",

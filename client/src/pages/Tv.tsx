@@ -641,13 +641,37 @@ function Backdrop({ bg }: { bg: string }) {
 }
 
 function GameOver({ room, send }: { room: PublicRoom; send: Send }) {
-  const stats = (room.module as { stats?: { label: string; value: string }[] | null } | null)
-    ?.stats;
+  const mod = room.module as {
+    stats?: { label: string; value: string }[] | null;
+    finalRoles?: { name: string; label: string; emoji: string; team: string }[] | null;
+  } | null;
+  const stats = mod?.stats;
+  const finalRoles = mod?.finalRoles;
+  const teamColor = (team: string) =>
+    team === "mafia" ? "var(--danger)" : team === "neutral" ? "var(--ink-dim)" : "var(--accent)";
   return (
     <>
       <div className="tv-banner title-font fade-in">
         🏆 {room.winners?.length ? room.winners.join(", ") : "Nobody"} wins!
       </div>
+      {!!finalRoles?.length && (
+        <div className="stats-panel fade-in" style={{ maxWidth: 900 }}>
+          <div className="stat-row">
+            <span className="stat-label">🎭 The truth</span>
+            <span className="stat-value" style={{ color: "var(--ink-dim)" }}>
+              who everyone really was
+            </span>
+          </div>
+          {finalRoles.map((r) => (
+            <div className="stat-row" key={r.name} style={{ fontSize: 18 }}>
+              <span>{r.name}</span>
+              <span className="stat-value" style={{ color: teamColor(r.team) }}>
+                {r.emoji} {r.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       {!!stats?.length && (
         <div className="stats-panel fade-in">
           {stats.map((s) => (

@@ -1,4 +1,4 @@
-import type { PlayerAction } from "../../../../shared/src/index.js";
+import { MAFIA_ROLES, type PlayerAction } from "../../../../shared/src/index.js";
 import type { Room, ServerPlayer } from "../../engine/room.js";
 import type { GameModule } from "../../engine/types.js";
 
@@ -141,12 +141,30 @@ function nightActors(room: Room): ServerPlayer[] {
   });
 }
 
-/** Night ends when every REAL actor has acted AND every connected living
- *  player has tapped something. Everyone submits at night (sleepers send a
- *  decoy suspicion pick) so the TV's ✓ badges reveal nothing about roles. */
+/** the killing arm of the mafia — conspirators + godfather (the consigliere
+ *  spends their night investigating, not stabbing) */
+function mafiaKillers(room: Room): ServerPlayer[] {
+  return room.alive().filter(
+    (p) => D(p).role === "conspirator" || D(p).role === "godfather",
+  );
+}
+
+/** the mafia must ALL point at the same victim to strike early */
+function killersAgree(room: Room): boolean {
+  const killers = mafiaKillers(room);
+  if (killers.length <= 1) return true;
+  const picks = killers.map((k) => D(k).pick);
+  return picks.every((p) => !!p && p === picks[0]);
+}
+
+/** Night ends when every REAL actor has acted, every connected living player
+ *  has tapped something (sleepers send a decoy suspicion pick so the TV's ✓
+ *  badges reveal nothing), AND the mafia agree on one victim. If the night
+ *  timer expires while they're still split, the godfather's pick decides. */
 function nightComplete(room: Room): boolean {
   if (!nightActors(room).every((p) => p.done)) return false;
-  return room.alive().every((p) => p.done || !p.connected);
+  if (!room.alive().every((p) => p.done || !p.connected)) return false;
+  return killersAgree(room);
 }
 
 const DISCUSSION_MS = 90_000;
@@ -194,20 +212,29 @@ function resolveNight(room: Room): void {
     }
   }
 
-  const team = room.alive().filter(isConspiracy);
   const doctor = aliveWithRole(room, "doctor")[0];
   const savedId = doctor ? D(doctor).pick : null;
 
-  // 2. the conspiracy strikes
+  // 2. the mafia strikes — normally a unanimous pick; on a split night (timer
+  //    expired without consensus) the godfather's pick decides, else random
+  //    among the killers' picks. No picks at all → a random innocent dies.
+  //    (Only killers' picks count — the consigliere's pick is their spy work.)
   const innocentTargets = room.alive().filter((p) => !isConspiracy(p));
-  const picks = team
+  const killers = mafiaKillers(room);
+  const kPicks = killers
     .map((c) => D(c).pick)
     .filter((id): id is string => !!id && room.players.get(id)?.status === "alive");
-  const targetId = picks.length
-    ? picks[Math.floor(Math.random() * picks.length)]
-    : innocentTargets.length
-      ? innocentTargets[Math.floor(Math.random() * innocentTargets.length)].id
-      : null;
+  const godfather = killers.find((k) => D(k).role === "godfather");
+  const gfPick = godfather ? D(godfather).pick : null;
+  const targetId = killersAgree(room) && kPicks.length
+    ? kPicks[0]
+    : gfPick && room.players.get(gfPick)?.status === "alive"
+      ? gfPick
+      : kPicks.length
+        ? kPicks[Math.floor(Math.random() * kPicks.length)]
+        : innocentTargets.length
+          ? innocentTargets[Math.floor(Math.random() * innocentTargets.length)].id
+          : null;
   const target = targetId ? room.players.get(targetId) : undefined;
   if (target && target.status === "alive") {
     if (savedId === target.id) {
@@ -677,6 +704,19 @@ export const conspiracy: GameModule = {
         .filter((p) => p.status === "dead")
         .map((p) => ({ name: p.name, points: D(p).ghostPoints ?? 0 })),
       stats: s.stats ?? null,
+      // the big reveal: every player's true role, shown on the game-over screen
+      finalRoles:
+        room.phase === "ended"
+          ? [...room.players.values()].map((p) => {
+              const info = MAFIA_ROLES[D(p).role ?? "innocent"];
+              return {
+                name: p.name,
+                label: info?.name ?? D(p).role ?? "innocent",
+                emoji: info?.emoji ?? "",
+                team: info?.team ?? "town",
+              };
+            })
+          : null,
     };
   },
 
@@ -692,6 +732,17 @@ export const conspiracy: GameModule = {
             .filter((p) => isConspiracy(p) && p.id !== playerId)
             .map((p) => p.name)
         : [],
+      // the family's live kill plan — every mafia phone sees who each killer
+      // is pointing at (the godfather stays anonymous within the team)
+      allyPicks:
+        isConspiracy(player) && room.phase === "night"
+          ? mafiaKillers(room).map((k) => ({
+              name: k.name,
+              you: k.id === playerId,
+              targetName: D(k).pick ? room.name(D(k).pick) : null,
+            }))
+          : [],
+      killersAgree: isConspiracy(player) ? killersAgree(room) : true,
       pick: d.pick ?? null,
       held: d.held ?? false,
       bulletUsed: d.bulletUsed ?? false,

@@ -29,19 +29,26 @@ interface ConspiracyYou {
   predict: string | null;
   ghostPoints: number;
   lastWordsUsed: boolean;
+  /** mafia only: the family's live kill plan (killers + who they point at) */
+  allyPicks: { name: string; you: boolean; targetName: string | null }[];
+  /** mafia only: true once every killer points at the same victim */
+  killersAgree: boolean;
 }
 
 const ROLE_INFO: Record<string, { title: string; desc: string; bad?: boolean }> = {
   conspirator: {
     title: "Mafia",
-    desc: "Each night, you and your allies choose someone to eliminate. By day: lie, deflect, survive.",
+    desc:
+      "Each night, you and your allies must AGREE on someone to eliminate — you'll see " +
+      "each other's picks. By day: lie, deflect, survive.",
     bad: true,
   },
   godfather: {
     title: "Godfather",
     desc:
       "You lead the mafia — and to the detective's eye, you appear INNOCENT. " +
-      "Each night, choose a victim with your allies.",
+      "Each night, agree on a victim with your allies; if the family is split when " +
+      "night ends, YOUR pick decides.",
     bad: true,
   },
   doctor: {
@@ -240,6 +247,7 @@ export function ConspiracyPhone({
         );
       }
       const isTeam = role === "conspirator" || role === "godfather";
+      const showPlan = (isTeam || role === "consigliere") && !!y.allyPicks?.length;
       const prompt = isTeam
         ? "Choose tonight's victim"
         : role === "doctor"
@@ -255,10 +263,32 @@ export function ConspiracyPhone({
           {!!y.allies?.length && (
             <p className="phone-hint">Allies: {y.allies.join(", ")}</p>
           )}
+          {isTeam && (y.allyPicks?.length ?? 0) > 1 && (
+            <p className="phone-hint">
+              The family must agree on ONE victim. If the night ends split, the boss's
+              pick decides.
+            </p>
+          )}
           {role === "vigilante" && (
             <p className="phone-hint" style={{ color: "var(--danger)" }}>
               ⚠ One bullet. Shoot an innocent and the guilt will kill you.
             </p>
+          )}
+          {showPlan && (
+            <div className="msg-box" style={{ textAlign: "left" }}>
+              🔪 The family's plan{" "}
+              {(y.allyPicks?.length ?? 0) > 1 && (
+                <b style={{ color: y.killersAgree ? "var(--accent)" : "var(--danger)" }}>
+                  — {y.killersAgree ? "agreed" : "split"}
+                </b>
+              )}
+              {y.allyPicks!.map((a) => (
+                <div key={a.name} style={{ marginTop: 4, fontSize: 14 }}>
+                  {a.name}
+                  {a.you ? " (you)" : ""} → <b>{a.targetName ?? "undecided…"}</b>
+                </div>
+              ))}
+            </div>
           )}
           <TargetList
             selectedId={y.pick}
@@ -274,7 +304,11 @@ export function ConspiracyPhone({
             </button>
           )}
           {me.done && !y.held && (
-            <p className="phone-hint">Locked in. You can still change your mind.</p>
+            <p className="phone-hint">
+              {isTeam && !y.killersAgree
+                ? "Locked in — waiting for the family to agree."
+                : "Locked in. You can still change your mind."}
+            </p>
           )}
         </>
       );

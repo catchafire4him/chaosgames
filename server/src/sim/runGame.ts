@@ -53,8 +53,23 @@ function botTick(room: Room): void {
             if (target) act(room, p.id, { kind: "night_pick", targetId: target });
           }
         } else if (role) {
-          // real actors AND sleepers — everyone submits at night (sleepers decoy)
-          const target = randomTarget(room, p.id);
+          // real actors AND sleepers — everyone submits at night (sleepers
+          // decoy). Mafia killers converge on the first killer's pick so the
+          // consensus rule resolves without waiting out the timer.
+          const allyPicks = (you.allyPicks ?? []) as {
+            name: string;
+            you: boolean;
+            targetName: string | null;
+          }[];
+          const leader = allyPicks[0];
+          const leaderId =
+            (role === "conspirator" || role === "godfather") &&
+            leader &&
+            !leader.you &&
+            leader.targetName
+              ? room.alive().find((q) => q.name === leader.targetName)?.id ?? null
+              : null;
+          const target = leaderId ?? randomTarget(room, p.id);
           if (target) act(room, p.id, { kind: "night_pick", targetId: target });
         }
         break;
