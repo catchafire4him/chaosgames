@@ -56,6 +56,7 @@ const S = (room: Room) =>
     detHits?: number;
     firstBlood?: string | null;
     stats?: { label: string; value: string }[] | null;
+    killLocked?: boolean;
   };
 const D = (p: ServerPlayer) =>
   p.data as {
@@ -184,6 +185,7 @@ function beginNight(room: Room): void {
     D(p).calledVote = false;
     D(p).predict = null;
   }
+  S(room).killLocked = false;
   room.play({
     id: "nightfall",
     urgent: true,
@@ -611,7 +613,8 @@ export const conspiracy: GameModule = {
         if (room.phase !== "night") return;
         const role = D(player).role;
         const target = room.players.get(String(action.targetId));
-        if (!target || target.status !== "alive" || target.id === player.id) return;
+        if (!target || target.status !== "alive" || (target.id === player.id && D(player).role !== "doctor")) return;
+        if (S(room).killLocked && mafiaKillers(room).some((k) => k.id === playerId)) return;
         const isActor = nightActors(room).some((p) => p.id === playerId);
         if (isActor) {
           if (isConspiracy(player) && isConspiracy(target)) return;
@@ -652,6 +655,13 @@ export const conspiracy: GameModule = {
         D(player).vote = t;
         player.done = true;
         if (room.alive().every((p) => p.done)) resolveVote(room);
+        return;
+      }
+      case "lock_kill": {
+        if (room.phase !== "night") return;
+        if (D(player).role !== "godfather" || player.status !== "alive") return;
+        if (!killersAgree(room) || !D(player).pick) return;
+        S(room).killLocked = true;
         return;
       }
     }
@@ -743,6 +753,7 @@ export const conspiracy: GameModule = {
             }))
           : [],
       killersAgree: isConspiracy(player) ? killersAgree(room) : true,
+      killLocked: isConspiracy(player) ? (S(room).killLocked ?? false) : false,
       pick: d.pick ?? null,
       held: d.held ?? false,
       bulletUsed: d.bulletUsed ?? false,

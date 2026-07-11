@@ -33,6 +33,7 @@ interface ConspiracyYou {
   allyPicks: { name: string; you: boolean; targetName: string | null }[];
   /** mafia only: true once every killer points at the same victim */
   killersAgree: boolean;
+  killLocked: boolean;
 }
 
 const ROLE_INFO: Record<string, { title: string; desc: string; bad?: boolean }> = {
@@ -48,12 +49,12 @@ const ROLE_INFO: Record<string, { title: string; desc: string; bad?: boolean }> 
     desc:
       "You lead the mafia — and to the detective's eye, you appear INNOCENT. " +
       "Each night, agree on a victim with your allies; if the family is split when " +
-      "night ends, YOUR pick decides.",
+      "night ends, YOUR pick decides. Once the family agrees, you can LOCK the plan.",
     bad: true,
   },
   doctor: {
     title: "Doctor",
-    desc: "Each night, choose someone to protect. If the mafia strikes them, they survive.",
+    desc: "Each night, choose someone to protect — yourself included. If the mafia strikes them, they survive.",
   },
   detective: {
     title: "Detective",
@@ -172,20 +173,25 @@ export function ConspiracyPhone({
     onPick,
     selectedId,
     exclude = () => false,
+    includeSelf = false,
   }: {
     onPick: (id: string) => void;
     selectedId: string | null | undefined;
     exclude?: (p: PublicPlayer) => boolean;
+    includeSelf?: boolean;
   }) => (
     <div className="target-list">
-      {targets(exclude).map((p) => (
+      {(includeSelf
+        ? [{ id: me.id, name: me.name, avatar: me.avatar, status: "alive" as const, connected: true }, ...targets(exclude)]
+        : targets(exclude)
+      ).map((p, idx) => (
         <button
           key={p.id}
           className={`target-btn ${selectedId === p.id ? "selected" : ""}`}
           onClick={() => onPick(p.id)}
         >
           <img src={avatarSrc(p.avatar)} alt="" />
-          <span>{p.name}</span>
+          <span>{idx === 0 && includeSelf ? `${p.name} (you)` : p.name}</span>
         </button>
       ))}
     </div>
@@ -288,12 +294,18 @@ export function ConspiracyPhone({
                   {a.you ? " (you)" : ""} → <b>{a.targetName ?? "undecided…"}</b>
                 </div>
               ))}
+              {y.killLocked && (
+                <div style={{ color: "var(--accent)", marginTop: 6, fontSize: 13 }}>
+                  🔒 The boss has locked it in. No take-backs.
+                </div>
+              )}
             </div>
           )}
           <TargetList
             selectedId={y.pick}
             exclude={(p) => (isTeam || role === "consigliere") && (y.allies ?? []).includes(p.name)}
             onPick={(id) => act({ kind: "night_pick", targetId: id })}
+            includeSelf={role === "doctor"}
           />
           {role === "vigilante" && (
             <button
@@ -303,11 +315,18 @@ export function ConspiracyPhone({
               🕊️ Hold fire tonight{y.held ? " ✓" : ""}
             </button>
           )}
+          {role === "godfather" && !y.killLocked && y.killersAgree && !!y.pick && (y.allyPicks?.length ?? 0) > 1 && (
+            <button className="primary" onClick={() => act({ kind: "lock_kill" })}>
+              🔒 Lock the plan — no last-minute changes
+            </button>
+          )}
           {me.done && !y.held && (
             <p className="phone-hint">
-              {isTeam && !y.killersAgree
-                ? "Locked in — waiting for the family to agree."
-                : "Locked in. You can still change your mind."}
+              {y.killLocked && isTeam
+                ? "🔒 The plan is locked."
+                : isTeam && !y.killersAgree
+                  ? "Locked in — waiting for the family to agree."
+                  : "Locked in. You can still change your mind."}
             </p>
           )}
         </>
