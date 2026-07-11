@@ -77,20 +77,9 @@ export function TimerChip({ room }: { room: PublicRoom }) {
   return <div className="timer-chip">⏳ {left}s</div>;
 }
 
-const SFX_EMOJI: Record<string, string> = {
-  thunder: "⚡",
-  sting: "🗡️",
-  bell: "🔔",
-  heartbeat: "🫀",
-  crowd_gasp: "😱",
-  victory: "🏆",
-};
-
+/** Subtle full-screen pulse when the host triggers a sound effect. The sound
+ *  itself carries the moment — this is just a soft visual accent. */
 export function SfxFlash({ sound }: { sound: string | null }) {
   if (!sound) return null;
-  return (
-    <div className="sfx-flash" key={sound + Date.now()}>
-      {SFX_EMOJI[sound] ?? "✨"}
-    </div>
-  );
+  return <div className="sfx-flash" key={sound + Date.now()} />;
 }
