@@ -122,7 +122,7 @@ function aliveWithRole(room: Room, role: Role): ServerPlayer[] {
   return room.alive().filter((p) => D(p).role === role);
 }
 
-/** everyone expected to submit a night action */
+/** everyone whose night action actually resolves to something */
 function nightActors(room: Room): ServerPlayer[] {
   return room.alive().filter((p) => {
     const d = D(p);
@@ -139,6 +139,14 @@ function nightActors(room: Room): ServerPlayer[] {
         return false;
     }
   });
+}
+
+/** Night ends when every REAL actor has acted AND every connected living
+ *  player has tapped something. Everyone submits at night (sleepers send a
+ *  decoy suspicion pick) so the TV's ✓ badges reveal nothing about roles. */
+function nightComplete(room: Room): boolean {
+  if (!nightActors(room).every((p) => p.done)) return false;
+  return room.alive().every((p) => p.done || !p.connected);
 }
 
 const DISCUSSION_MS = 90_000;
@@ -162,9 +170,9 @@ function beginNight(room: Room): void {
     id: "nightfall",
     urgent: true,
     instruction:
-      `Night ${room.round} falls. Narrate nightfall ominously (2-3 short lines) and tell everyone to ` +
-      `look at their phones: those with night roles must act now, everyone else should feign sleep. ` +
-      `Do NOT hint at anyone's role.`,
+      `Night ${room.round} falls. Narrate nightfall ominously (2-3 short lines) and tell EVERY player to ` +
+      `look at their phone and make their night choice — everyone acts at night, so nobody can tell who ` +
+      `is really doing what. Do NOT hint at anyone's role.`,
     after: (r) => {
       if (r.phase === "night") r.setTimer("night", NIGHT_MS);
     },
@@ -575,15 +583,18 @@ export const conspiracy: GameModule = {
       case "night_pick": {
         if (room.phase !== "night") return;
         const role = D(player).role;
-        const isActor = nightActors(room).some((p) => p.id === playerId);
-        if (!isActor) return;
         const target = room.players.get(String(action.targetId));
-        if (!target || target.status !== "alive") return;
-        if (isConspiracy(player) && isConspiracy(target)) return;
-        if (role === "vigilante") D(player).held = false;
+        if (!target || target.status !== "alive" || target.id === player.id) return;
+        const isActor = nightActors(room).some((p) => p.id === playerId);
+        if (isActor) {
+          if (isConspiracy(player) && isConspiracy(target)) return;
+          if (role === "vigilante") D(player).held = false;
+        }
+        // sleepers submit a decoy suspicion pick — resolveNight never reads it,
+        // but every phone acts at night so nobody can tell who has a real role
         D(player).pick = target.id;
         player.done = true;
-        if (nightActors(room).every((p) => p.done)) resolveNight(room);
+        if (nightComplete(room)) resolveNight(room);
         return;
       }
       case "hold_fire": {
@@ -593,7 +604,7 @@ export const conspiracy: GameModule = {
         D(player).held = true;
         D(player).pick = null;
         player.done = true;
-        if (nightActors(room).every((p) => p.done)) resolveNight(room);
+        if (nightComplete(room)) resolveNight(room);
         return;
       }
       case "call_vote": {
@@ -651,6 +662,10 @@ export const conspiracy: GameModule = {
       lastVerdict: s.lastVerdict ?? null,
       votesIn:
         room.phase === "voting"
+          ? room.alive().filter((p) => p.done).length
+          : null,
+      nightActed:
+        room.phase === "night"
           ? room.alive().filter((p) => p.done).length
           : null,
       callVotes:
@@ -738,7 +753,7 @@ export const conspiracy: GameModule = {
       case "nightfall":
         return [
           { text: `Night ${room.round} falls on Grimsby Hollow.`, mood: "eerie" },
-          { text: "Those with business in the dark — your phones await. Everyone else, close your eyes and hope.", mood: "ominous" },
+          { text: "Phones out, everyone — the night has work for each of you. Some of it matters more than you know.", mood: "ominous" },
         ];
       case "dawn": {
         const deaths = s.lastDawn?.deaths ?? [];

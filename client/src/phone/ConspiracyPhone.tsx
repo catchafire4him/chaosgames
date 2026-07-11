@@ -214,15 +214,24 @@ export function ConspiracyPhone({
       if (sleeper) {
         return (
           <>
-            <div className="phone-title">🌙 Night falls</div>
+            <div className="phone-title">🌙 Point a finger in the dark</div>
             {y.guilt ? (
               <p className="phone-hint" style={{ color: "var(--danger)" }}>
                 The guilt gnaws at you. You feel this night will be your last...
               </p>
-            ) : role === "vigilante" ? (
+            ) : role === "vigilante" && y.bulletUsed ? (
               <p className="phone-hint">Your bullet is spent. You sleep with one eye open.</p>
-            ) : (
-              <p className="phone-hint">You sleep. Hopefully soundly. Hopefully safely.</p>
+            ) : null}
+            <p className="phone-hint">
+              Everyone acts at night — mark who you find most suspicious. Your pick stays
+              secret, and it keeps the killers guessing who's who.
+            </p>
+            <TargetList
+              selectedId={y.pick}
+              onPick={(id) => act({ kind: "night_pick", targetId: id })}
+            />
+            {me.done && (
+              <p className="phone-hint">Locked in. You can still change your mind.</p>
             )}
           </>
         );

@@ -52,7 +52,8 @@ function botTick(room: Room): void {
             const target = randomTarget(room, p.id);
             if (target) act(room, p.id, { kind: "night_pick", targetId: target });
           }
-        } else if (role && role !== "innocent" && role !== "jester") {
+        } else if (role) {
+          // real actors AND sleepers — everyone submits at night (sleepers decoy)
           const target = randomTarget(room, p.id);
           if (target) act(room, p.id, { kind: "night_pick", targetId: target });
         }

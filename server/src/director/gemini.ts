@@ -109,7 +109,7 @@ export class GeminiDirector implements Director {
       `Respond ONLY with JSON matching the response schema. Keep narration punchy — ` +
       `every line is spoken aloud, so 1-2 sentences per line, 2-5 lines total unless told otherwise.`;
 
-    const raw = await this.generate(job.persona, prompt, responseSchema);
+    const raw = await this.generate(job.persona, prompt, responseSchema, job.onLine);
     const parsed = JSON.parse(raw) as {
       lines?: { text?: string; mood?: string }[];
       calls?: { name?: string; argsJson?: string }[];
@@ -137,36 +137,110 @@ export class GeminiDirector implements Director {
     return { lines, calls, data: parsed.data };
   }
 
-  /** Try candidate models until one answers; cache the winner. */
+  /** Try candidate models until one answers; cache the winner.
+   *  With `onLine`, the response is STREAMED and the first narration line is
+   *  emitted the moment it parses — the stage can start speaking while the
+   *  rest of the JSON (remaining lines, authored data) is still generating. */
   private async generate(
     persona: string,
     prompt: string,
     responseSchema: Schema,
+    onLine?: (line: { text: string; mood?: string }) => void,
   ): Promise<string> {
     const models = this.model ? [this.model] : MODEL_CANDIDATES;
+    const config = {
+      systemInstruction: persona,
+      responseMimeType: "application/json" as const,
+      responseSchema,
+      temperature: 1.0,
+    };
+    // once a line has been spoken we never emit again — a retry on another
+    // model may author different lines, and the engine drops the duplicate
+    let emitted = false;
     let lastErr: unknown;
     for (const model of models) {
       try {
-        const res = await this.ai.models.generateContent({
+        if (!onLine) {
+          const res = await this.ai.models.generateContent({ model, contents: prompt, config });
+          const text = res.text;
+          if (!text) throw new Error("empty response");
+          this.model = model;
+          return text;
+        }
+        const stream = await this.ai.models.generateContentStream({
           model,
           contents: prompt,
-          config: {
-            systemInstruction: persona,
-            responseMimeType: "application/json",
-            responseSchema,
-            temperature: 1.0,
-          },
+          config,
         });
-        const text = res.text;
-        if (!text) throw new Error("empty response");
+        let buf = "";
+        for await (const chunk of stream) {
+          buf += chunk.text ?? "";
+          if (!emitted) {
+            const line = firstLineFromPartialJson(buf);
+            if (line) {
+              emitted = true;
+              try {
+                onLine(line);
+              } catch {
+                /* stage callback must never kill the generation */
+              }
+            }
+          }
+        }
+        if (!buf) throw new Error("empty response");
         this.model = model;
-        return text;
+        return buf;
       } catch (err) {
         lastErr = err;
-        console.warn(`[director] model ${model} failed:`, (err as Error).message);
+        console.warn(
+          `[director] model ${model} failed${emitted ? " AFTER first line was spoken" : ""}:`,
+          (err as Error).message,
+        );
         this.model = null;
       }
     }
     throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
   }
+}
+
+/** Extract the first complete object of the `lines` array from a partial JSON
+ *  buffer (string-aware brace matching — text may contain braces/brackets). */
+export function firstLineFromPartialJson(
+  buf: string,
+): { text: string; mood?: string } | null {
+  const linesIdx = buf.indexOf('"lines"');
+  if (linesIdx < 0) return null;
+  const arrIdx = buf.indexOf("[", linesIdx);
+  if (arrIdx < 0) return null;
+  const objStart = buf.indexOf("{", arrIdx);
+  if (objStart < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = objStart; i < buf.length; i++) {
+    const ch = buf[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+    } else if (ch === '"') inStr = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          const o = JSON.parse(buf.slice(objStart, i + 1)) as {
+            text?: string;
+            mood?: string;
+          };
+          return typeof o.text === "string" && o.text.trim()
+            ? { text: o.text.trim(), mood: o.mood }
+            : null;
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null; // first object not complete yet
 }

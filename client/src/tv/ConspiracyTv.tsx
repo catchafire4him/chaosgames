@@ -18,6 +18,7 @@ interface ConspiracyPublic {
   lastDawn: { deaths: Death[]; saved: boolean } | null;
   lastVerdict: { name: string; role: string; tied: boolean } | null;
   votesIn: number | null;
+  nightActed: number | null;
   callVotes: number | null;
   aliveCount: number;
 }
@@ -59,7 +60,9 @@ export function ConspiracyTv({ room }: { room: PublicRoom }) {
       return `${m.votesIn}/${m.aliveCount} votes in`;
     }
     if (room.phase === "night") {
-      return "Night roles: act on your phones";
+      return m.nightActed != null
+        ? `${m.nightActed}/${m.aliveCount} choices made — every player acts at night`
+        : "Everyone: make your night choice on your phone";
     }
     if (room.phase === "role_reveal" && m.rolesList?.length) {
       return `In play tonight: ${m.rolesList.join(" · ")}`;

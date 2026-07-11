@@ -18,6 +18,11 @@ export interface DirectorJob {
   /** canned fallbacks (used by MockDirector, and by the engine on failure) */
   fallbackLines: { text: string; mood?: string }[];
   fallbackData?: unknown;
+  /** Streaming: called with the FIRST narration line as soon as it parses out
+   *  of the model's response stream — long before the full response (and any
+   *  authored `data`) completes. Lets the stage start speaking immediately.
+   *  Directors that don't stream simply never call it. */
+  onLine?: (line: { text: string; mood?: string }) => void;
 }
 
 export interface DirectorResult {
