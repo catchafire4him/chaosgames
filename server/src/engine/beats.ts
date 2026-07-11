@@ -87,14 +87,17 @@ const LINE_TIMEOUT_MS = 20_000;
  *  (quota relief + a single continuous performance, zero mid-beat drift) */
 const TTS_BATCH_MIN = 3;
 
-/** stream one line's audio to the TV as the TTS produces it */
-function synthLine(room: Room, line: NarrationLine): void {
+/** stream one line's audio to the TV as the TTS produces it.
+ *  `live` lets the (quota-paced) TTS queue skip this job if the beat has
+ *  been superseded by the time it reaches the front. */
+function synthLine(room: Room, line: NarrationLine, live: () => boolean): void {
   void room.speaker
     .synth(
       line.text,
       line.mood,
       (pcm) => room.sendTv({ type: "narration_audio", lineId: line.id, pcm }),
       room.module.voiceStyle,
+      live,
     )
     .then((ok) => room.sendTv({ type: "narration_audio_end", lineId: line.id, ok }))
     .catch(() => room.sendTv({ type: "narration_audio_end", lineId: line.id, ok: false }));
@@ -103,7 +106,7 @@ function synthLine(room: Room, line: NarrationLine): void {
 /** batch several lines into ONE TTS request (quota relief + one continuous
  *  performance); the audio streams under the leader's id and the TV advances
  *  the follower captions on an estimated schedule */
-function synthBatch(room: Room, batch: NarrationLine[]): void {
+function synthBatch(room: Room, batch: NarrationLine[], live: () => boolean): void {
   const leader = batch[0];
   const fullText = batch.map((l) => l.text).join(" ");
   void room.speaker
@@ -112,6 +115,7 @@ function synthBatch(room: Room, batch: NarrationLine[]): void {
       leader.mood,
       (pcm) => room.sendTv({ type: "narration_audio", lineId: leader.id, pcm }),
       room.module.voiceStyle,
+      live,
     )
     .then((ok) => {
       // ok=false → every line falls back to browser TTS individually
@@ -153,9 +157,15 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
   // No TV connected (headless sim / everyone navigated away): don't wait on acks.
   const headless = room.tvSockets.size === 0;
 
-  // Urgent beats soft-flush the previous beat's queued narration NOW, so the
-  // streamed first line lands on a clean stage (current line still finishes).
-  if (beat.urgent && !headless) room.sendTv({ type: "narration_clear" });
+  // Urgent beats soft-flush the previous beat's queued narration — but only
+  // right before OUR first line lands, so the old beat keeps playing (and
+  // acking) through the compose gap instead of leaving dead air.
+  let flushed = false;
+  const flushIfUrgent = () => {
+    if (flushed || !beat.urgent || headless) return;
+    flushed = true;
+    room.sendTv({ type: "narration_clear" });
+  };
 
   // ── Narration lifecycle ─────────────────────────────────────────────────
   // The pending tracker exists for the WHOLE beat — from the Director call
@@ -233,9 +243,10 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
           const line: NarrationLine = { id: rid("ln"), text, mood: l.mood };
           lines.push(line);
           remaining.add(line.id);
+          flushIfUrgent();
           room.sendTv({ type: "host_thinking", on: false }); // the host is speaking
           room.sendTv({ type: "narration", line });
-          synthLine(room, line);
+          synthLine(room, line, () => !cancelled);
         },
   };
 
@@ -302,9 +313,11 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
   room.remember(beat.id, lines.map((l) => l.text).join(" "));
 
   if (!headless && rest.length) {
+    flushIfUrgent();
     // Batch the remainder into one TTS request when it's long enough (quota:
     // TTS preview models allow ~10 req/min, shared across rooms); otherwise
     // stream each line's audio individually.
+    const live = () => !cancelled;
     const batched = rest.length >= (early ? 2 : TTS_BATCH_MIN);
     if (batched) {
       const leader = rest[0];
@@ -314,12 +327,12 @@ export async function runBeat(room: Room, beat: Beat, waited = 0): Promise<void>
           line: line === leader ? line : { ...line, audioFrom: leader.id },
         });
       }
-      synthBatch(room, rest);
+      synthBatch(room, rest, live);
     } else {
       // announce all lines up front (the TV buffers + plays strictly in
       // order), then stream each line's audio as the TTS produces it
       for (const line of rest) room.sendTv({ type: "narration", line });
-      for (const line of rest) synthLine(room, line);
+      for (const line of rest) synthLine(room, line, live);
     }
   }
   room.broadcast();

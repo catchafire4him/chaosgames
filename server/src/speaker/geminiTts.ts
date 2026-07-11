@@ -59,8 +59,11 @@ export class GeminiTtsSpeaker implements Speaker {
     mood: string | undefined,
     emit: (pcmBase64: string) => void,
     voiceStyle?: string,
+    stillWanted?: () => boolean,
   ): Promise<boolean> {
-    const job = this.queue.then(() => this.synthNow(text, mood, emit, voiceStyle));
+    const job = this.queue.then(() =>
+      this.synthNow(text, mood, emit, voiceStyle, stillWanted),
+    );
     // keep the chain alive even if a job rejects
     this.queue = job.catch(() => undefined);
     return job;
@@ -71,7 +74,10 @@ export class GeminiTtsSpeaker implements Speaker {
     mood: string | undefined,
     emit: (pcmBase64: string) => void,
     voiceStyle?: string,
+    stillWanted?: () => boolean,
   ): Promise<boolean> {
+    // a superseded beat's job — skip without spending quota or the pacing gap
+    if (stillWanted && !stillWanted()) return false;
     // Every request is stateless, so the character description must be
     // IDENTICAL on every line — only the inflection hint varies, subtly.
     const character =
@@ -92,6 +98,8 @@ export class GeminiTtsSpeaker implements Speaker {
 
     let modelIdx = 0;
     while (Date.now() - started < LINE_DEADLINE_MS && modelIdx < models.length) {
+      // the beat may have been superseded while we waited out a 429
+      if (stillWanted && !stillWanted()) return false;
       const model = models[modelIdx];
 
       // pace requests under the per-minute quota

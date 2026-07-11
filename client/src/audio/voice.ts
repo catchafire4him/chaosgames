@@ -33,6 +33,9 @@ export class VoiceEngine {
   private currentStart = 0;
   private activeSources = new Set<AudioBufferSourceNode>();
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** hard cap on how long one line may wait for its audio to finish arriving —
+   *  a lost narration_audio_end must never wedge the whole queue */
+  private watchdog: ReturnType<typeof setTimeout> | null = null;
   /** timers advancing follower captions during a batched leader's audio */
   private captionTimers = new Set<ReturnType<typeof setTimeout>>();
 
@@ -132,6 +135,16 @@ export class VoiceEngine {
       this.nextStartTime = this.ctx.currentTime;
       this.currentStart = this.ctx.currentTime;
     }
+    if (this.watchdog) clearTimeout(this.watchdog);
+    const st = this.current;
+    this.watchdog = setTimeout(() => {
+      this.watchdog = null;
+      if (this.current === st && !st.ended) {
+        st.ended = true;
+        st.ok = st.scheduledAny; // some audio played → finish it; none → browser TTS
+        this.checkAdvance();
+      }
+    }, 60_000);
     this.onLineStart(this.current.line);
     this.drain();
     this.checkAdvance();
@@ -252,6 +265,10 @@ export class VoiceEngine {
     if (this.advanceTimer) {
       clearTimeout(this.advanceTimer);
       this.advanceTimer = null;
+    }
+    if (this.watchdog) {
+      clearTimeout(this.watchdog);
+      this.watchdog = null;
     }
     this.current = null;
     this.states.delete(st.line.id);
